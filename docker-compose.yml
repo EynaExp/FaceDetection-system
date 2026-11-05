@@ -1,0 +1,14 @@
+services:
+  face-attendance:
+    build: .
+    container_name: school_face_attendance
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - ADMIN_PASSWORD=admin123
+    volumes:
+      - ./data:/app/database
+    devices:
+      - /dev/video0:/dev/video0 # Optional: map host webcam if local

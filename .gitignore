@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+.npm/
+package-lock.json
+
+# Python / Virtual Environment
+.venv/
+__pycache__/
+
+# Private Biometric & Database Data
+database/
+saved_faces/
+*.jpg
+*.jpeg
+*.png
+
+# Configuration & Secrets
+.env
+.env.*
+database/config.json
+
+# Logs & System artifacts
+*.log
+.DS_Store
+Thumbs.db

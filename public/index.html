@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سامانه حضور و غیاب هوشمند دانش‌آموزان | School Face Attendance</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/face-api.js"></script>
+  <script src="/js/app.js" defer></script>
+</head>
+<body>
+  <!-- School Navigation Bar -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="school-icon">🎓</span>
+        <div>
+          <h2>سامانه حضور و غیاب چهره مدارس</h2>
+          <p class="school-sub">ثبت ورود خودکار و گزارش وضعیت دانش‌آموزان</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button id="tabGateBtn" class="nav-item active">گیت ورودی مدرسه (تایید چهره)</button>
+        <!-- Admin-only tabs (hidden for students by default) -->
+        <button id="tabEnrollBtn" class="nav-item admin-only hidden">ثبت چهره دانش‌آموز</button>
+        <button id="tabAttendanceBtn" class="nav-item admin-only hidden">دفتر حضور و غیاب امروز</button>
+        <button id="tabAdminBtn" class="nav-item admin-only hidden">مدیریت پرونده دانش‌آموزان</button>
+        <button id="tabSettingsBtn" class="nav-item admin-only hidden">⚙️ تنظیمات دوربین و سیستم</button>
+      </nav>
+
+      <div class="helpers">
+        <!-- Change Password Button (Visible only when logged in as Admin) -->
+        <button id="changePassBtn" class="btn-login admin-only hidden" title="تغییر رمز عبور">
+          <span>🔑</span>
+          <span>تغییر رمز</span>
+        </button>
+
+        <!-- Admin Login / Logout Button -->
+        <button id="adminAuthBtn" class="btn-login">
+          <span id="adminAuthIcon">🔒</span>
+          <span id="adminAuthLabel">ورود مدیر</span>
+        </button>
+        <button id="langToggleBtn" class="btn-lang" title="Language">English</button>
+        <div class="status-indicator">
+          <span id="systemDot" class="status-dot yellow"></span>
+          <span id="systemStatus">آماده‌سازی مدل‌ها...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. LIVE GATE / SCHOOL ENTRANCE CAMERA (Clean & Dedicated for Students) -->
+  <main id="tabGate" class="main-container active">
+    <div class="gate-standalone-view">
+      <div class="video-box gate-screen-box">
+        <video id="gateVideo" autoplay playsinline muted></video>
+        <img id="cctvImage" class="cctv-img hidden" alt="CCTV Stream">
+        <canvas id="gateCanvas"></canvas>
+      </div>
+
+      <!-- Dedicated Notification Box Directly Under Webcam -->
+      <div id="gateResultCard" class="gate-result-card neutral-state">
+        <div class="result-badge-icon" id="gateResultIcon">👤</div>
+        <div class="result-text-block">
+          <div class="result-primary-title" id="gateResultTitle">روبروی دوربین قرار بگیرید</div>
+          <div class="result-sub-subtitle" id="gateResultSub">سیستم در حال رصد و ثبت ورود خودکار است</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 2. STUDENT FACE SCAN & ENROLLMENT -->
+  <main id="tabEnroll" class="main-container">
+    <div class="clean-grid">
+      <div class="clean-card">
+        <div class="card-top">
+          <h3>اسکن چهره و مشخصات دانش‌آموز</h3>
+          <button id="toggleEnrollCamBtn" class="btn btn-main">روشن کردن اسکنر چهره</button>
+        </div>
+
+        <div class="video-box">
+          <video id="enrollVideo" autoplay playsinline muted></video>
+          <canvas id="enrollCanvas"></canvas>
+        </div>
+
+        <!-- 3 Step Guided Wizard -->
+        <div class="step-guide">
+          <div class="step-prompt" id="guideStepPrompt">مرحله ۱ از ۳: روبروی دوربین نگاه کنید</div>
+          <div class="step-dots">
+            <span class="step-dot active" id="dot1"></span>
+            <span class="step-dot" id="dot2"></span>
+            <span class="step-dot" id="dot3"></span>
+          </div>
+        </div>
+
+        <div class="form-bottom">
+          <input type="text" id="memberNameInput" class="clean-input" placeholder="نام و نام خانوادگی دانش‌آموز *">
+          <input type="text" id="studentCodeInput" class="clean-input" placeholder="شماره دانش‌آموزی / کدملی">
+          <input type="text" id="studentGradeInput" class="clean-input" placeholder="کلاس / پایه (مثال: دهم تجربی)">
+          <button id="nextStepBtn" class="btn btn-secondary" disabled>ثبت این زاویه</button>
+          <button id="submitMemberBtn" class="btn btn-success hidden">ثبت نام در سامانه مدرسه</button>
+        </div>
+      </div>
+
+      <!-- Recently Enrolled Students -->
+      <div class="clean-card">
+        <div class="card-top">
+          <h3>دانش‌آموزان اخیراً ثبت‌شده (<span id="membersTotalBadge">0</span>)</h3>
+        </div>
+        <div class="table-box">
+          <table class="simple-table">
+            <thead>
+              <tr>
+                <th>تصویر</th>
+                <th>نام دانش‌آموز</th>
+                <th>کد / کلاس</th>
+              </tr>
+            </thead>
+            <tbody id="enrollMiniTableBody">
+              <tr><td colspan="3" class="empty-state">هنوز دانش‌آموزی ثبت نشده است.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 3. DAILY ATTENDANCE SHEET (PRESENT / ABSENT) -->
+  <main id="tabAttendance" class="main-container">
+    <div class="clean-card">
+      <div class="card-top">
+        <div class="attendance-header">
+          <h3>دفتر حضور و غیاب روزانه مدرسه</h3>
+          <div class="quick-stats-row">
+            <span class="badge-tag green">حاضر: <strong id="attPresentNum">0</strong></span>
+            <span class="badge-tag red">غایب: <strong id="attAbsentNum">0</strong></span>
+            <span class="badge-tag blue">کل: <strong id="attTotalNum">0</strong></span>
+          </div>
+        </div>
+
+        <div class="filter-actions">
+          <!-- Status Filter Tabs: All / Absent / Present -->
+          <div class="attendance-filter-tabs">
+            <button class="filter-tab-btn active" data-filter="ALL">همه دانش‌آموزان</button>
+            <button class="filter-tab-btn absent-filter" data-filter="ABSENT">🚫 غایبین امروز (<span id="filterAbsentCount">0</span>)</button>
+            <button class="filter-tab-btn present-filter" data-filter="PRESENT">✅ حاضرین (<span id="filterPresentCount">0</span>)</button>
+          </div>
+
+          <input type="text" id="attendanceSearchInput" class="clean-input" placeholder="جستجوی نام، کد یا کلاس...">
+          <button id="refreshAttendanceBtn" class="btn btn-secondary">بروزرسانی وضعیت</button>
+        </div>
+      </div>
+
+      <div class="table-box full-table">
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>تصویر</th>
+              <th>نام دانش‌آموز</th>
+              <th>کد دانش‌آموزی</th>
+              <th>کلاس / پایه</th>
+              <th>وضعیت امروز</th>
+              <th>ساعت ثبت ورود</th>
+              <th>تغییر وضعیت</th>
+            </tr>
+          </thead>
+          <tbody id="attendanceTableBody">
+            <tr><td colspan="7" class="empty-state">داده‌ای یافت نشد.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- 5. SETTINGS PANEL (ADMIN ONLY) -->
+  <main id="tabSettings" class="main-container">
+    <div class="clean-card" style="max-width:760px; margin:0 auto;">
+      <div class="card-top">
+        <h3>⚙️ تنظیمات دوربین گیت و سیستم</h3>
+      </div>
+
+      <div class="settings-content">
+        <div class="form-group">
+          <label>منبع تصویر گیت ورودی:</label>
+          <select id="sourceSelect" class="clean-select" style="width:100%;">
+            <option value="webcam">وب‌کم محلی (USB / Built-in)</option>
+            <option value="cctv">دوربین مداربسته تحت شبکه (CCTV / RTSP)</option>
+          </select>
+        </div>
+
+        <div id="webcamSettingsBox" class="form-group" style="margin-top:14px;">
+          <label>انتخاب دستگاه وب‌کم:</label>
+          <select id="gateCamSelect" class="clean-select" style="width:100%;"></select>
+        </div>
+
+        <div id="cctvSettingsBox" class="form-group hidden" style="margin-top:14px;">
+          <label>آدرس استریم دوربین مداربسته (RTSP Stream URL):</label>
+          <input type="text" id="rtspUrlInput" class="clean-input" style="width:100%;" placeholder="rtsp://admin:pass@192.168.1.100:554/stream1" value="rtsp://">
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label>وضعیت اتصال دوربین گیت:</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="toggleGateCamBtn" class="btn btn-main">روشن کردن دوربین گیت</button>
+            <span id="gateCamStatusIndicator" class="badge-tag blue">آماده</span>
+          </div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--border); margin:20px 0;">
+
+        <div class="form-group">
+          <label>آستانه دقت تشخیص چهره (Match Threshold):</label>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <input type="range" id="thresholdSlider" min="0.40" max="0.65" step="0.01" value="0.54" style="flex-grow:1;">
+            <span id="thresholdValDisplay" style="font-weight:bold; width:48px;">0.54</span>
+          </div>
+          <p style="font-size:0.75rem; color:var(--text-sub); margin-top:4px;">
+            مقادیر کمتر = سخت‌گیرانه‌تر و دقیق‌تر | مقادیر بیشتر = حساس‌تر در زوایای مختلف صورت
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 4. STUDENT RECORDS & ADMIN MANAGEMENT (Search, Modify, Delete) -->
+  <main id="tabAdmin" class="main-container">
+    <div class="clean-card">
+      <div class="card-top">
+        <div class="search-bar">
+          <input type="text" id="memberSearchInput" class="clean-input search-input" placeholder="جستجوی دانش‌آموز (نام، کدملی، شناسه)...">
+        </div>
+        <div class="admin-stats">
+          <span>کل پرونده‌ها: <strong id="adminCountDisplay">0</strong> دانش‌آموز</span>
+        </div>
+      </div>
+
+      <div class="table-box full-table">
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>تصویر</th>
+              <th>نام دانش‌آموز</th>
+              <th>کد دانش‌آموزی</th>
+              <th>کلاس / پایه</th>
+              <th>تاریخ ثبت‌نام</th>
+              <th>عملیات ادمین</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody">
+            <tr><td colspan="6" class="empty-state">دانش‌آموزی ثبت نشده است.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- EDIT STUDENT MODAL -->
+  <div id="editModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>ویرایش پرونده دانش‌آموز</h3>
+        <button id="closeEditModalBtn" class="btn-text">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editMemberId">
+        <div class="form-group">
+          <label>نام و نام خانوادگی:</label>
+          <input type="text" id="editMemberName" class="clean-input" required>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>کد دانش‌آموزی / کدملی:</label>
+          <input type="text" id="editStudentCode" class="clean-input">
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>کلاس / پایه تحصیلی:</label>
+          <input type="text" id="editStudentGrade" class="clean-input">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelEditBtn" class="btn btn-secondary">انصراف</button>
+        <button id="saveEditBtn" class="btn btn-main">ذخیره تغییرات</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN LOGIN MODAL -->
+  <div id="loginModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>ورود مدیریت مدرسه</h3>
+        <button id="closeLoginModalBtn" class="btn-text">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem; color:var(--text-sub); margin-bottom:14px;">
+          جهت دسترسی به ثبت دانش‌آموزان، دفتر غایبین و ویرایش پرونده‌ها رمز عبور مدیریت را وارد کنید.
+        </p>
+        <div class="form-group">
+          <label>رمز عبور مدیریت:</label>
+          <input type="password" id="adminPasswordInput" class="clean-input" placeholder="رمز عبور...">
+        </div>
+        <div id="loginErrorMsg" class="login-error hidden">رمز عبور نادرست است</div>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelLoginBtn" class="btn btn-secondary">انصراف</button>
+        <button id="submitLoginBtn" class="btn btn-main">ورود به پنل</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHANGE PASSWORD MODAL -->
+  <div id="changePassModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>تغییر رمز عبور مدیریت</h3>
+        <button id="closeChangePassModalBtn" class="btn-text">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>رمز عبور فعلی:</label>
+          <input type="password" id="oldPasswordInput" class="clean-input" placeholder="رمز عبور فعلی...">
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>رمز عبور جدید:</label>
+          <input type="password" id="newPasswordInput" class="clean-input" placeholder="حداقل ۴ کاراکتر...">
+        </div>
+        <div id="changePassErrorMsg" class="login-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelChangePassBtn" class="btn btn-secondary">انصراف</button>
+        <button id="saveChangePassBtn" class="btn btn-main">ثبت رمز جدید</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
