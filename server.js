@@ -305,20 +305,31 @@ app.post('/api/attendance/verify', (req, res) => {
   }
 });
 
-// Manual attendance toggle (present / absent) by school administrator (Admin only)
+// Manual attendance toggle (present / absent) or submit present by studentId/studentCode
 app.post('/api/attendance/manual', requireAdmin, (req, res) => {
   try {
-    const { studentId, date, status } = req.body;
+    const { studentId, studentCode, date, status } = req.body;
     const targetDate = date || getTodayKey();
     const attendanceMap = readJSON(ATTENDANCE_FILE);
     if (!attendanceMap[targetDate]) attendanceMap[targetDate] = [];
 
     const students = readJSON(DB_FILE);
-    const student = students.find(s => s.id === studentId);
-    if (!student) return res.status(404).json({ success: false, error: 'Student not found' });
+    let student = null;
+    if (studentId) {
+      student = students.find(s => s.id === studentId || s.studentCode === studentId);
+    }
+    if (!student && studentCode) {
+      student = students.find(s => s.studentCode === String(studentCode).trim() || s.id === String(studentCode).trim());
+    }
 
-    if (status === 'PRESENT') {
-      const idx = attendanceMap[targetDate].findIndex(l => l.studentId === studentId);
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'دانش‌آموزی با این شناسه یا کد یافت نشد' });
+    }
+
+    const newStatus = status ? status.toUpperCase() : 'PRESENT';
+
+    if (newStatus === 'PRESENT') {
+      const idx = attendanceMap[targetDate].findIndex(l => l.studentId === student.id);
       if (idx === -1) {
         attendanceMap[targetDate].unshift({
           studentId: student.id,
@@ -331,11 +342,11 @@ app.post('/api/attendance/manual', requireAdmin, (req, res) => {
       }
     } else {
       // Mark absent
-      attendanceMap[targetDate] = attendanceMap[targetDate].filter(l => l.studentId !== studentId);
+      attendanceMap[targetDate] = attendanceMap[targetDate].filter(l => l.studentId !== student.id);
     }
 
     writeJSON(ATTENDANCE_FILE, attendanceMap);
-    res.json({ success: true, status });
+    res.json({ success: true, student, status: newStatus });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

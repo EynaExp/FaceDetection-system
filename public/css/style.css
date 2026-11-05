@@ -714,6 +714,17 @@ canvas {
   flex-wrap: wrap;
 }
 
+/* QUICK MANUAL PRESENT ENTRY */
+.manual-entry-box {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.manual-input {
+  min-width: 260px;
+}
+
 /* ATTENDANCE FILTER TABS */
 .attendance-filter-tabs {
   display: flex;

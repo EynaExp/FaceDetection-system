@@ -721,17 +721,81 @@ function renderAttendanceTable() {
       </td>
     `;
 
-    tr.querySelector('.btn-toggle-att').onclick = async () => {
+    const toggleBtn = tr.querySelector('.btn-toggle-att');
+    toggleBtn.onclick = async () => {
       const nextStatus = isPresent ? 'ABSENT' : 'PRESENT';
-      await fetch('/api/attendance/manual', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ studentId: s.id, status: nextStatus })
-      });
-      loadTodayAttendance();
+      try {
+        toggleBtn.disabled = true;
+        const res = await fetch('/api/attendance/manual', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ studentId: s.id, status: nextStatus })
+        });
+        const d = await res.json();
+        if (res.status === 403) {
+          alert('خطای دسترسی: لطفا ابتدا با دکمه "ورود مدیر" وارد شوید.');
+          return;
+        }
+        if (!d.success) {
+          alert('خطا در تغییر وضعیت: ' + (d.error || 'ناشناخته'));
+          return;
+        }
+        await loadTodayAttendance();
+      } catch (err) {
+        alert('خطای ارتباط با سرور: ' + err.message);
+      } finally {
+        toggleBtn.disabled = false;
+      }
     };
 
     attendanceTableBody.appendChild(tr);
+  });
+}
+
+// Manual present submit by student ID or Code
+const manualStudentInput = document.getElementById('manualStudentInput');
+const manualPresentBtn = document.getElementById('manualPresentBtn');
+
+if (manualPresentBtn && manualStudentInput) {
+  const submitManualPresent = async () => {
+    const val = manualStudentInput.value.trim();
+    if (!val) {
+      alert('لطفا شناسه یا کد دانش‌آموزی را وارد کنید');
+      manualStudentInput.focus();
+      return;
+    }
+
+    try {
+      manualPresentBtn.disabled = true;
+      const res = await fetch('/api/attendance/manual', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ studentId: val, status: 'PRESENT' })
+      });
+      const d = await res.json();
+
+      if (res.status === 403) {
+        alert('خطای دسترسی: لطفا ابتدا با دکمه "ورود مدیر" وارد شوید.');
+        return;
+      }
+
+      if (d.success) {
+        manualStudentInput.value = '';
+        alert(`دانش‌آموز "${d.student.name}" (کد: ${d.student.studentCode}) با موفقیت حاضر ثبت شد.`);
+        await loadTodayAttendance();
+      } else {
+        alert('خطا: ' + (d.error || 'دانش‌آموز یافت نشد'));
+      }
+    } catch (err) {
+      alert('خطا در ثبت: ' + err.message);
+    } finally {
+      manualPresentBtn.disabled = false;
+    }
+  };
+
+  manualPresentBtn.addEventListener('click', submitManualPresent);
+  manualStudentInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitManualPresent();
   });
 }
 
