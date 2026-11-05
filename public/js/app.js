@@ -614,7 +614,10 @@ async function recordAttendance(studentId) {
 }
 
 // 2. DAILY ATTENDANCE LOAD & STATS
+let isAttendanceFetching = false;
 async function loadTodayAttendance() {
+  if (isAttendanceFetching) return;
+  isAttendanceFetching = true;
   try {
     const res = await fetch('/api/attendance/today');
     const d = await res.json();
@@ -628,14 +631,14 @@ async function loadTodayAttendance() {
       });
 
       // Update gate quick stats
-      gatePresentCount.innerText = d.stats.present;
-      gateAbsentCount.innerText = d.stats.absent;
-      gateTotalCount.innerText = d.stats.total;
+      if (gatePresentCount) gatePresentCount.innerText = d.stats.present;
+      if (gateAbsentCount) gateAbsentCount.innerText = d.stats.absent;
+      if (gateTotalCount) gateTotalCount.innerText = d.stats.total;
 
       // Update attendance tab badges
-      attPresentNum.innerText = d.stats.present;
-      attAbsentNum.innerText = d.stats.absent;
-      attTotalNum.innerText = d.stats.total;
+      if (attPresentNum) attPresentNum.innerText = d.stats.present;
+      if (attAbsentNum) attAbsentNum.innerText = d.stats.absent;
+      if (attTotalNum) attTotalNum.innerText = d.stats.total;
 
       if (filterAbsentCount) filterAbsentCount.innerText = d.stats.absent;
       if (filterPresentCount) filterPresentCount.innerText = d.stats.present;
@@ -645,6 +648,8 @@ async function loadTodayAttendance() {
     }
   } catch (e) {
     console.error(e);
+  } finally {
+    isAttendanceFetching = false;
   }
 }
 
@@ -1160,4 +1165,13 @@ if (tabSettingsBtn) tabSettingsBtn.addEventListener('click', () => switchTab('se
 window.addEventListener('DOMContentLoaded', () => {
   updateAdminUI();
   initModels();
+
+  // Background Live Auto-Update for Attendance Table & Stats
+  setInterval(() => {
+    // Only refresh when on attendance or gate tab and user is not actively typing in search
+    const isTyping = document.activeElement === attendanceSearchInput || document.activeElement === manualStudentInput;
+    if (!isTyping && (currentTab === 'attendance' || currentTab === 'gate')) {
+      loadTodayAttendance();
+    }
+  }, 2500);
 });
