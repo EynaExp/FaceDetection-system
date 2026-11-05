@@ -1,9 +1,354 @@
 // School Attendance & Face Verification Controller
-let currentLang = 'fa';
+let currentLang = localStorage.getItem('school_app_lang') || 'fa';
 let modelsLoaded = false;
 let enrolledStudents = [];
 let todayAttendance = [];
 let currentTab = 'gate';
+
+const i18n = {
+  fa: {
+    brandOrg: "سامانه ابری هوشمند مدارس",
+    brandTitle: "کنترل تردد و حضور و غیاب",
+    tabGate: "گیت ورودی",
+    tabEnroll: "ثبت چهره جدید",
+    tabAttendance: "دفتر حضور و غیاب",
+    tabAdmin: "پرونده دانش‌آموزان",
+    tabSettings: "تنظیمات",
+    changePass: "تغییر رمز",
+    adminLogin: "ورود مدیر",
+    adminLogout: "خروج مدیر",
+    loading: "در حال آماده‌سازی...",
+    ready: "سامانه مدرسه آماده است",
+    errLoading: "خطا در بارگذاری مدل‌ها",
+    gatePromptDefault: "روبروی دوربین قرار بگیرید",
+    gateSubDefault: "سیستم در حال رصد و ثبت ورود خودکار است",
+    verifiedTitle: "دانش‌آموز تایید شد: ",
+    verifiedAlready: "وضعیت: قبلاً در لیست حاضرین امروز ثبت شده است",
+    verifiedPresent: "ساعت ورود: ",
+    unverifiedTitle: "چهره تایید نشد (ناشناس)",
+    unverifiedSub: "عدم تطابق چهره با دانش‌آموزان ثبت‌شده در سامانه مدرسه",
+    toggleCamStart: "روشن کردن دوربین گیت",
+    toggleCamStop: "خاموش کردن دوربین گیت",
+    cctvConnect: "اتصال دوربین مداربسته (CCTV)",
+    cctvDisconnect: "قطع اتصال دوربین مداربسته",
+    camActive: "فعال (وب‌کم)",
+    camStopped: "متوقف",
+    camConnecting: "در حال اتصال...",
+    camCctvActive: "متصل (CCTV)",
+    step1: "مرحله ۱ از ۳: روبروی دوربین نگاه کنید",
+    step2: "مرحله ۲ از ۳: سر را کمی به سمت راست بچرخانید",
+    step3: "مرحله ۳ از ۳: سر را کمی به سمت چپ بچرخانید",
+    stepDone: "اسکن کامل شد! مشخصات دانش‌آموز را تکمیل و ثبت نمایید",
+    scannerStart: "روشن کردن اسکنر چهره",
+    scannerStop: "خاموش کردن اسکنر",
+    namePlaceholder: "نام و نام خانوادگی دانش‌آموز *",
+    codePlaceholder: "شماره دانش‌آموزی / کدملی",
+    gradePlaceholder: "کلاس / پایه (مثال: دهم تجربی)",
+    btnCaptureAngle: "ثبت این زاویه",
+    btnSubmitFinal: "ثبت نام در سامانه مدرسه",
+    recentlyEnrolled: "دانش‌آموزان اخیراً ثبت‌شده",
+    attSheetTitle: "دفتر حضور و غیاب روزانه مدرسه",
+    presentLbl: "حاضر: ",
+    absentLbl: "غایب: ",
+    totalLbl: "کل: ",
+    manualInputPh: "ثبت حضور با شناسه یا کد دانش‌آموز...",
+    btnManualPresent: "+ ثبت حاضر",
+    filterAll: "همه دانش‌آموزان",
+    filterAbsent: "غایبین امروز",
+    filterPresent: "حاضرین",
+    attSearchPh: "جستجوی نام، کد یا کلاس...",
+    btnRefreshAtt: "بروزرسانی وضعیت",
+    thPhoto: "تصویر",
+    thName: "نام دانش‌آموز",
+    thCode: "کد دانش‌آموزی",
+    thGrade: "کلاس / پایه",
+    thStatus: "وضعیت امروز",
+    thTime: "ساعت ثبت ورود",
+    thAction: "تغییر وضعیت",
+    statusPresentBadge: "حاضر (تایید چهره)",
+    statusAbsentBadge: "غایب",
+    btnMarkAbsent: "ثبت غیبت",
+    btnMarkPresent: "ثبت دستی حضور",
+    settingsTitle: "تنظیمات دوربین گیت و سیستم",
+    settingsSourceLbl: "منبع تصویر گیت ورودی:",
+    optWebcam: "وب‌کم محلی (USB / Built-in)",
+    optCctv: "دوربین مداربسته تحت شبکه (CCTV / RTSP)",
+    settingsDeviceLbl: "انتخاب دستگاه وب‌کم:",
+    settingsRtspLbl: "آدرس استریم دوربین مداربسته (RTSP Stream URL):",
+    settingsCamStatusLbl: "وضعیت اتصال دوربین گیت:",
+    settingsThresholdLbl: "آستانه دقت تشخیص چهره (Match Threshold):",
+    settingsThresholdHint: "مقادیر کمتر = سخت‌گیرانه‌تر و دقیق‌تر | مقادیر بیشتر = حساس‌تر در زوایای مختلف صورت",
+    adminSearchPh: "جستجوی دانش‌آموز (نام، کدملی، شناسه)...",
+    adminTotalCountLbl: "کل پرونده‌ها: ",
+    thRegDate: "تاریخ ثبت‌نام",
+    thAdminActions: "عملیات ادمین",
+    btnEdit: "ویرایش",
+    btnDelete: "حذف",
+    emptyNoData: "داده‌ای یافت نشد.",
+    emptyNoStudents: "دانش‌آموزی ثبت نشده است.",
+    emptyNoLogs: "هنوز کسی ثبت ورود نکرده است.",
+    modalEditTitle: "ویرایش پرونده دانش‌آموز",
+    modalEditName: "نام و نام خانوادگی:",
+    modalEditCode: "کد دانش‌آموزی / کدملی:",
+    modalEditGrade: "کلاس / پایه تحصیلی:",
+    btnCancel: "انصراف",
+    btnSaveEdit: "ذخیره تغییرات",
+    modalLoginTitle: "ورود مدیریت مدرسه",
+    modalLoginHint: "جهت دسترسی به ثبت دانش‌آموزان، دفتر غایبین و ویرایش پرونده‌ها رمز عبور مدیریت را وارد کنید.",
+    modalLoginPassLbl: "رمز عبور مدیریت:",
+    modalLoginBtn: "ورود به پنل",
+    modalChangePassTitle: "تغییر رمز عبور مدیریت",
+    modalOldPassLbl: "رمز عبور فعلی:",
+    modalNewPassLbl: "رمز عبور جدید:",
+    btnSaveNewPass: "ثبت رمز جدید"
+  },
+  en: {
+    brandOrg: "Cloud Smart School System",
+    brandTitle: "Access Control & Attendance",
+    tabGate: "Entrance Gate",
+    tabEnroll: "Register Face",
+    tabAttendance: "Daily Attendance",
+    tabAdmin: "Student Directory",
+    tabSettings: "Settings",
+    changePass: "Change Password",
+    adminLogin: "Admin Login",
+    adminLogout: "Admin Logout",
+    loading: "Loading models...",
+    ready: "School Attendance System Ready",
+    errLoading: "Error loading models",
+    gatePromptDefault: "Please stand in front of camera",
+    gateSubDefault: "System is monitoring and recording entries automatically",
+    verifiedTitle: "Student Verified: ",
+    verifiedAlready: "Status: Already logged as present today",
+    verifiedPresent: "Entry time: ",
+    unverifiedTitle: "Face Not Verified (Unrecognized)",
+    unverifiedSub: "No matching registered student found in school database",
+    toggleCamStart: "Turn On Gate Camera",
+    toggleCamStop: "Turn Off Gate Camera",
+    cctvConnect: "Connect CCTV Camera",
+    cctvDisconnect: "Disconnect CCTV",
+    camActive: "Active (Webcam)",
+    camStopped: "Stopped",
+    camConnecting: "Connecting...",
+    camCctvActive: "Connected (CCTV)",
+    step1: "Step 1 of 3: Look straight at camera",
+    step2: "Step 2 of 3: Turn head slightly to the right",
+    step3: "Step 3 of 3: Turn head slightly to the left",
+    stepDone: "Scan complete! Fill student details and submit",
+    scannerStart: "Start Face Scanner",
+    scannerStop: "Stop Face Scanner",
+    namePlaceholder: "Student Full Name *",
+    codePlaceholder: "Student ID / Code",
+    gradePlaceholder: "Class / Grade (e.g. 10th Math)",
+    btnCaptureAngle: "Capture Angle",
+    btnSubmitFinal: "Register in School System",
+    recentlyEnrolled: "Recently Enrolled Students",
+    attSheetTitle: "School Daily Attendance Ledger",
+    presentLbl: "Present: ",
+    absentLbl: "Absent: ",
+    totalLbl: "Total: ",
+    manualInputPh: "Manual entry by Student ID / Code...",
+    btnManualPresent: "+ Mark Present",
+    filterAll: "All Students",
+    filterAbsent: "Absent Today",
+    filterPresent: "Present",
+    attSearchPh: "Search name, code, or class...",
+    btnRefreshAtt: "Refresh Status",
+    thPhoto: "Photo",
+    thName: "Student Name",
+    thCode: "Student ID",
+    thGrade: "Class / Grade",
+    thStatus: "Today's Status",
+    thTime: "Entry Time",
+    thAction: "Toggle Status",
+    statusPresentBadge: "Present (Face Verified)",
+    statusAbsentBadge: "Absent",
+    btnMarkAbsent: "Mark Absent",
+    btnMarkPresent: "Mark Present",
+    settingsTitle: "Gate Camera & System Settings",
+    settingsSourceLbl: "Gate Video Source:",
+    optWebcam: "Local Webcam (USB / Built-in)",
+    optCctv: "Network IP Camera (CCTV / RTSP)",
+    settingsDeviceLbl: "Select Webcam Device:",
+    settingsRtspLbl: "CCTV Stream Address (RTSP Stream URL):",
+    settingsCamStatusLbl: "Gate Camera Connection Status:",
+    settingsThresholdLbl: "Face Recognition Match Threshold:",
+    settingsThresholdHint: "Lower value = Stricter & Higher Accuracy | Higher value = More Sensitive to angles",
+    adminSearchPh: "Search student (name, ID, code)...",
+    adminTotalCountLbl: "Total Directory: ",
+    thRegDate: "Registration Date",
+    thAdminActions: "Admin Actions",
+    btnEdit: "Edit",
+    btnDelete: "Delete",
+    emptyNoData: "No data found.",
+    emptyNoStudents: "No students registered yet.",
+    emptyNoLogs: "No entries logged yet.",
+    modalEditTitle: "Edit Student Profile",
+    modalEditName: "Full Name:",
+    modalEditCode: "Student ID / Code:",
+    modalEditGrade: "Class / Grade:",
+    btnCancel: "Cancel",
+    btnSaveEdit: "Save Changes",
+    modalLoginTitle: "School Admin Login",
+    modalLoginHint: "Enter administrator password to access registration, directory, and attendance ledger.",
+    modalLoginPassLbl: "Admin Password:",
+    modalLoginBtn: "Login to Dashboard",
+    modalChangePassTitle: "Change Admin Password",
+    modalOldPassLbl: "Current Password:",
+    modalNewPassLbl: "New Password:",
+    btnSaveNewPass: "Save New Password"
+  }
+};
+
+function applyTranslations() {
+  const t = i18n[currentLang];
+  document.documentElement.lang = currentLang;
+  document.documentElement.dir = currentLang === 'fa' ? 'rtl' : 'ltr';
+
+  // Toggle button indicator text
+  if (langToggleBtn) {
+    langToggleBtn.innerText = currentLang === 'fa' ? 'EN' : 'FA';
+    langToggleBtn.title = currentLang === 'fa' ? 'Switch to English' : 'تغییر به فارسی';
+  }
+
+  // Header Brand
+  const brandOrg = document.querySelector('.brand-org');
+  if (brandOrg) brandOrg.innerText = t.brandOrg;
+  const brandTitle = document.querySelector('.brand-title');
+  if (brandTitle) brandTitle.innerText = t.brandTitle;
+
+  // Nav Items
+  if (tabGateBtn) {
+    tabGateBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg> ${t.tabGate}`;
+  }
+  if (tabEnrollBtn) {
+    tabEnrollBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg> ${t.tabEnroll}`;
+  }
+  if (tabAttendanceBtn) {
+    tabAttendanceBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg> ${t.tabAttendance}`;
+  }
+  if (tabAdminBtn) {
+    tabAdminBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${t.tabAdmin}`;
+  }
+  if (tabSettingsBtn) {
+    tabSettingsBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> ${t.tabSettings}`;
+  }
+
+  // Top Action Buttons
+  if (changePassBtn) {
+    changePassBtn.querySelector('span:last-child').innerText = t.changePass;
+  }
+  updateAdminUI();
+
+  // Gate Defaults
+  if (gateResultTitle && gateResultCard && gateResultCard.classList.contains('neutral-state')) {
+    gateResultTitle.innerText = t.gatePromptDefault;
+    gateResultSub.innerText = t.gateSubDefault;
+  }
+
+  // Enrollment Tab
+  const enrollCardTitle = document.querySelector('#tabEnroll h3');
+  if (enrollCardTitle) enrollCardTitle.innerText = t.brandTitle;
+  if (toggleEnrollCamBtn) toggleEnrollCamBtn.innerText = enrollStream ? t.scannerStop : t.scannerStart;
+  if (memberNameInput) memberNameInput.placeholder = t.namePlaceholder;
+  if (studentCodeInput) studentCodeInput.placeholder = t.codePlaceholder;
+  if (studentGradeInput) studentGradeInput.placeholder = t.gradePlaceholder;
+  if (nextStepBtn) nextStepBtn.innerText = t.btnCaptureAngle;
+  if (submitMemberBtn) submitMemberBtn.innerText = t.btnSubmitFinal;
+  updateStepUI();
+
+  // Attendance Tab
+  const attTitle = document.querySelector('.attendance-header h3');
+  if (attTitle) attTitle.innerText = t.attSheetTitle;
+  if (manualStudentInput) manualStudentInput.placeholder = t.manualInputPh;
+  if (manualPresentBtn) manualPresentBtn.innerText = t.btnManualPresent;
+
+  const filterBtns = document.querySelectorAll('.filter-tab-btn');
+  if (filterBtns[0]) filterBtns[0].innerText = t.filterAll;
+  if (filterBtns[1]) filterBtns[1].innerHTML = `${t.filterAbsent} (<span id="filterAbsentCount">${filterAbsentCount ? filterAbsentCount.innerText : '0'}</span>)`;
+  if (filterBtns[2]) filterBtns[2].innerHTML = `${t.filterPresent} (<span id="filterPresentCount">${filterPresentCount ? filterPresentCount.innerText : '0'}</span>)`;
+  if (attendanceSearchInput) attendanceSearchInput.placeholder = t.attSearchPh;
+  if (refreshAttendanceBtn) refreshAttendanceBtn.innerText = t.btnRefreshAtt;
+
+  // Attendance Table Headers
+  const attThs = document.querySelectorAll('#tabAttendance .simple-table th');
+  if (attThs.length >= 7) {
+    attThs[0].innerText = t.thPhoto;
+    attThs[1].innerText = t.thName;
+    attThs[2].innerText = t.thCode;
+    attThs[3].innerText = t.thGrade;
+    attThs[4].innerText = t.thStatus;
+    attThs[5].innerText = t.thTime;
+    attThs[6].innerText = t.thAction;
+  }
+
+  // Settings Tab
+  const settingsTitle = document.querySelector('#tabSettings h3');
+  if (settingsTitle) settingsTitle.innerText = t.settingsTitle;
+  const settingsLabels = document.querySelectorAll('#tabSettings .form-group label');
+  if (settingsLabels[0]) settingsLabels[0].innerText = t.settingsSourceLbl;
+  if (sourceSelect && sourceSelect.options.length >= 2) {
+    sourceSelect.options[0].text = t.optWebcam;
+    sourceSelect.options[1].text = t.optCctv;
+  }
+  if (settingsLabels[1]) settingsLabels[1].innerText = t.settingsDeviceLbl;
+  if (settingsLabels[2]) settingsLabels[2].innerText = t.settingsRtspLbl;
+  if (settingsLabels[3]) settingsLabels[3].innerText = t.settingsCamStatusLbl;
+  if (settingsLabels[4]) settingsLabels[4].innerText = t.settingsThresholdLbl;
+  const thresholdHint = document.querySelector('#tabSettings p');
+  if (thresholdHint) thresholdHint.innerText = t.settingsThresholdHint;
+
+  // Admin Directory Tab
+  if (memberSearchInput) memberSearchInput.placeholder = t.adminSearchPh;
+  const adminThs = document.querySelectorAll('#tabAdmin .simple-table th');
+  if (adminThs.length >= 6) {
+    adminThs[0].innerText = t.thPhoto;
+    adminThs[1].innerText = t.thName;
+    adminThs[2].innerText = t.thCode;
+    adminThs[3].innerText = t.thGrade;
+    adminThs[4].innerText = t.thRegDate;
+    adminThs[5].innerText = t.thAdminActions;
+  }
+
+  // Modals
+  const editModalHeader = document.querySelector('#editModal .modal-header h3');
+  if (editModalHeader) editModalHeader.innerText = t.modalEditTitle;
+  const editLabels = document.querySelectorAll('#editModal label');
+  if (editLabels[0]) editLabels[0].innerText = t.modalEditName;
+  if (editLabels[1]) editLabels[1].innerText = t.modalEditCode;
+  if (editLabels[2]) editLabels[2].innerText = t.modalEditGrade;
+  if (cancelEditBtn) cancelEditBtn.innerText = t.btnCancel;
+  if (saveEditBtn) saveEditBtn.innerText = t.btnSaveEdit;
+
+  const loginTitle = document.querySelector('#loginModal .modal-header h3');
+  if (loginTitle) loginTitle.innerText = t.modalLoginTitle;
+  const loginHint = document.querySelector('#loginModal .modal-body p');
+  if (loginHint) loginHint.innerText = t.modalLoginHint;
+  const loginPassLbl = document.querySelector('#loginModal label');
+  if (loginPassLbl) loginPassLbl.innerText = t.modalLoginPassLbl;
+  if (cancelLoginBtn) cancelLoginBtn.innerText = t.btnCancel;
+  if (submitLoginBtn) submitLoginBtn.innerText = t.modalLoginBtn;
+
+  const changePassTitle = document.querySelector('#changePassModal .modal-header h3');
+  if (changePassTitle) changePassTitle.innerText = t.modalChangePassTitle;
+  const changePassLabels = document.querySelectorAll('#changePassModal label');
+  if (changePassLabels[0]) changePassLabels[0].innerText = t.modalOldPassLbl;
+  if (changePassLabels[1]) changePassLabels[1].innerText = t.modalNewPassLbl;
+  if (cancelChangePassBtn) cancelChangePassBtn.innerText = t.btnCancel;
+  if (saveChangePassBtn) saveChangePassBtn.innerText = t.btnSaveNewPass;
+
+  renderAttendanceTable();
+  renderAdminTable();
+}
+
+// Language toggle event
+if (langToggleBtn) {
+  langToggleBtn.addEventListener('click', () => {
+    currentLang = currentLang === 'fa' ? 'en' : 'fa';
+    localStorage.setItem('school_app_lang', currentLang);
+    applyTranslations();
+  });
+}
 
 // 3-step guided enrollment
 let enrollStep = 1;
@@ -718,7 +1063,7 @@ function renderAttendanceTable() {
   attendanceTableBody.innerHTML = '';
   list.forEach(s => {
     const isPresent = s.status === 'PRESENT';
-    const timeStr = s.entryTime ? new Date(s.entryTime).toLocaleTimeString('fa-IR') : '-';
+    const timeStr = s.entryTime ? new Date(s.entryTime).toLocaleTimeString(currentLang === 'fa' ? 'fa-IR' : 'en-US') : '-';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><img src="${s.photoUrl || ''}" class="thumb-img"></td>
@@ -727,13 +1072,13 @@ function renderAttendanceTable() {
       <td><span class="tag-role">${s.grade}</span></td>
       <td>
         <span class="status-pill-badge ${isPresent ? 'present' : 'absent'}">
-          ${isPresent ? 'حاضر (تایید چهره)' : 'غایب'}
+          ${isPresent ? i18n[currentLang].statusPresentBadge : i18n[currentLang].statusAbsentBadge}
         </span>
       </td>
       <td><span class="${isPresent ? 'time-val' : ''}">${timeStr}</span></td>
       <td>
         <button class="btn-toggle-att" data-id="${s.id}" data-current="${s.status}">
-          ${isPresent ? 'ثبت غیبت' : 'ثبت دستی حضور'}
+          ${isPresent ? i18n[currentLang].btnMarkAbsent : i18n[currentLang].btnMarkPresent}
         </button>
       </td>
     `;
@@ -925,11 +1270,11 @@ function updateStepUI() {
   dot2.className = 'step-dot' + (enrollStep >= 2 ? (enrollStep > 2 ? ' done' : ' active') : '');
   dot3.className = 'step-dot' + (enrollStep >= 3 ? (enrollStep > 3 ? ' done' : ' active') : '');
 
-  if (enrollStep === 1) guideStepPrompt.innerText = 'مرحله ۱ از ۳: روبروی دوربین نگاه کنید';
-  else if (enrollStep === 2) guideStepPrompt.innerText = 'مرحله ۲ از ۳: سر را کمی به سمت راست بچرخانید';
-  else if (enrollStep === 3) guideStepPrompt.innerText = 'مرحله ۳ از ۳: سر را کمی به سمت چپ بچرخانید';
+  if (enrollStep === 1) guideStepPrompt.innerText = i18n[currentLang].step1;
+  else if (enrollStep === 2) guideStepPrompt.innerText = i18n[currentLang].step2;
+  else if (enrollStep === 3) guideStepPrompt.innerText = i18n[currentLang].step3;
   else {
-    guideStepPrompt.innerText = 'اسکن کامل شد! مشخصات دانش‌آموز را تکمیل و ثبت نمایید';
+    guideStepPrompt.innerText = i18n[currentLang].stepDone;
     nextStepBtn.classList.add('hidden');
     submitMemberBtn.classList.remove('hidden');
   }
@@ -1047,13 +1392,13 @@ function renderAdminTable() {
   }
 
   if (list.length === 0) {
-    adminTableBody.innerHTML = `<tr><td colspan="6" class="empty-state">پرونده‌ای یافت نشد.</td></tr>`;
+    adminTableBody.innerHTML = `<tr><td colspan="6" class="empty-state">${i18n[currentLang].emptyNoStudents}</td></tr>`;
     return;
   }
 
   adminTableBody.innerHTML = '';
   list.forEach(s => {
-    const regDate = new Date(s.registeredAt).toLocaleDateString('fa-IR');
+    const regDate = new Date(s.registeredAt).toLocaleDateString(currentLang === 'fa' ? 'fa-IR' : 'en-US');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><img src="${s.photoUrl || ''}" class="thumb-img"></td>
@@ -1062,8 +1407,8 @@ function renderAdminTable() {
       <td><span class="tag-role">${s.grade}</span></td>
       <td>${regDate}</td>
       <td>
-        <button class="btn-action edit-btn" data-id="${s.id}">ویرایش</button>
-        <button class="btn-action del delete-btn" data-id="${s.id}">حذف</button>
+        <button class="btn-action edit-btn" data-id="${s.id}">${i18n[currentLang].btnEdit}</button>
+        <button class="btn-action del delete-btn" data-id="${s.id}">${i18n[currentLang].btnDelete}</button>
       </td>
     `;
 
@@ -1175,6 +1520,7 @@ tabAdminBtn.addEventListener('click', () => switchTab('admin'));
 if (tabSettingsBtn) tabSettingsBtn.addEventListener('click', () => switchTab('settings'));
 
 window.addEventListener('DOMContentLoaded', () => {
+  applyTranslations();
   updateAdminUI();
   initModels();
 
