@@ -3,48 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>سامانه حضور و غیاب هوشمند دانش‌آموزان | School Face Attendance</title>
+  <title>سامانه حضور و غیاب دانش‌آموزان</title>
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/face-api.js"></script>
   <script src="/js/app.js" defer></script>
 </head>
 <body>
-  <!-- School Navigation Bar -->
+  <!-- Clean School Header & Navigation -->
   <header class="app-header">
     <div class="header-inner">
-      <div class="logo">
-        <span class="school-icon">🎓</span>
-        <div>
-          <h2>سامانه حضور و غیاب چهره مدارس</h2>
-          <p class="school-sub">ثبت ورود خودکار و گزارش وضعیت دانش‌آموزان</p>
+      <div class="brand-zone">
+        <div class="brand-symbol">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="brand-info">
+          <span class="brand-org">سامانه ابری هوشمند مدارس</span>
+          <h1 class="brand-title">کنترل تردد و حضور و غیاب</h1>
         </div>
       </div>
 
-      <nav class="nav">
-        <button id="tabGateBtn" class="nav-item active">گیت ورودی مدرسه (تایید چهره)</button>
+      <nav class="nav-segment">
+        <button id="tabGateBtn" class="nav-link active">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          گیت ورودی
+        </button>
         <!-- Admin-only tabs (hidden for students by default) -->
-        <button id="tabEnrollBtn" class="nav-item admin-only hidden">ثبت چهره دانش‌آموز</button>
-        <button id="tabAttendanceBtn" class="nav-item admin-only hidden">دفتر حضور و غیاب امروز</button>
-        <button id="tabAdminBtn" class="nav-item admin-only hidden">مدیریت پرونده دانش‌آموزان</button>
-        <button id="tabSettingsBtn" class="nav-item admin-only hidden">⚙️ تنظیمات دوربین و سیستم</button>
+        <button id="tabEnrollBtn" class="nav-link admin-only hidden">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          ثبت چهره جدید
+        </button>
+        <button id="tabAttendanceBtn" class="nav-link admin-only hidden">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+          دفتر حضور و غیاب
+        </button>
+        <button id="tabAdminBtn" class="nav-link admin-only hidden">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          پرونده دانش‌آموزان
+        </button>
+        <button id="tabSettingsBtn" class="nav-link admin-only hidden">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          تنظیمات
+        </button>
       </nav>
 
-      <div class="helpers">
+      <div class="action-zone">
         <!-- Change Password Button (Visible only when logged in as Admin) -->
-        <button id="changePassBtn" class="btn-login admin-only hidden" title="تغییر رمز عبور">
-          <span>🔑</span>
+        <button id="changePassBtn" class="btn-top-util admin-only hidden" title="تغییر رمز عبور">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L16 7l-4 4-2-2-4 4-2-2-2 2 2 2 4-4 2 2 4-4 1.5-1.5L21 2z"/><circle cx="7.5" cy="16.5" r="3.5"/></svg>
           <span>تغییر رمز</span>
         </button>
 
         <!-- Admin Login / Logout Button -->
-        <button id="adminAuthBtn" class="btn-login">
-          <span id="adminAuthIcon">🔒</span>
+        <button id="adminAuthBtn" class="btn-top-util auth-trigger">
+          <svg id="adminAuthSvg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <span id="adminAuthLabel">ورود مدیر</span>
         </button>
-        <button id="langToggleBtn" class="btn-lang" title="Language">English</button>
+
+        <button id="langToggleBtn" class="btn-top-util lang-badge" title="Switch Language">EN</button>
+
         <div class="status-indicator">
           <span id="systemDot" class="status-dot yellow"></span>
-          <span id="systemStatus">آماده‌سازی مدل‌ها...</span>
+          <span id="systemStatus">در حال آماده‌سازی...</span>
         </div>
       </div>
     </div>
@@ -61,7 +80,9 @@
 
       <!-- Dedicated Notification Box Directly Under Webcam -->
       <div id="gateResultCard" class="gate-result-card neutral-state">
-        <div class="result-badge-icon" id="gateResultIcon">👤</div>
+        <div class="result-badge-icon" id="gateResultIcon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
         <div class="result-text-block">
           <div class="result-primary-title" id="gateResultTitle">روبروی دوربین قرار بگیرید</div>
           <div class="result-sub-subtitle" id="gateResultSub">سیستم در حال رصد و ثبت ورود خودکار است</div>
@@ -75,7 +96,7 @@
     <div class="clean-grid">
       <div class="clean-card">
         <div class="card-top">
-          <h3>اسکن چهره و مشخصات دانش‌آموز</h3>
+          <h3>اسکن چهره و ثبت مشخصات دانش‌آموز</h3>
           <button id="toggleEnrollCamBtn" class="btn btn-main">روشن کردن اسکنر چهره</button>
         </div>
 
@@ -149,8 +170,8 @@
           <!-- Status Filter Tabs: All / Absent / Present -->
           <div class="attendance-filter-tabs">
             <button class="filter-tab-btn active" data-filter="ALL">همه دانش‌آموزان</button>
-            <button class="filter-tab-btn absent-filter" data-filter="ABSENT">🚫 غایبین امروز (<span id="filterAbsentCount">0</span>)</button>
-            <button class="filter-tab-btn present-filter" data-filter="PRESENT">✅ حاضرین (<span id="filterPresentCount">0</span>)</button>
+            <button class="filter-tab-btn absent-filter" data-filter="ABSENT">غایبین امروز (<span id="filterAbsentCount">0</span>)</button>
+            <button class="filter-tab-btn present-filter" data-filter="PRESENT">حاضرین (<span id="filterPresentCount">0</span>)</button>
           </div>
 
           <input type="text" id="attendanceSearchInput" class="clean-input" placeholder="جستجوی نام، کد یا کلاس...">
@@ -183,7 +204,7 @@
   <main id="tabSettings" class="main-container">
     <div class="clean-card" style="max-width:760px; margin:0 auto;">
       <div class="card-top">
-        <h3>⚙️ تنظیمات دوربین گیت و سیستم</h3>
+        <h3>تنظیمات دوربین گیت و سیستم</h3>
       </div>
 
       <div class="settings-content">

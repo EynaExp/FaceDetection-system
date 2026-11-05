@@ -111,7 +111,7 @@ const langToggleBtn = document.getElementById('langToggleBtn');
 
 // Admin Authentication Elements
 const adminAuthBtn = document.getElementById('adminAuthBtn');
-const adminAuthIcon = document.getElementById('adminAuthIcon');
+const adminAuthSvg = document.getElementById('adminAuthSvg');
 const adminAuthLabel = document.getElementById('adminAuthLabel');
 const loginModal = document.getElementById('loginModal');
 const closeLoginModalBtn = document.getElementById('closeLoginModalBtn');
@@ -137,11 +137,15 @@ function updateAdminUI() {
 
   if (isAdmin) {
     adminAuthLabel.innerText = currentLang === 'fa' ? 'خروج مدیر' : 'Logout Admin';
-    adminAuthIcon.innerText = '🔓';
+    if (adminAuthSvg) {
+      adminAuthSvg.innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>';
+    }
     adminAuthBtn.classList.add('logged-in');
   } else {
     adminAuthLabel.innerText = currentLang === 'fa' ? 'ورود مدیر' : 'Admin Login';
-    adminAuthIcon.innerText = '🔒';
+    if (adminAuthSvg) {
+      adminAuthSvg.innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+    }
     adminAuthBtn.classList.remove('logged-in');
     // If on restricted tab, send back to gate
     if (currentTab !== 'gate') switchTab('gate');
@@ -580,7 +584,13 @@ function updateGateResult(state, title, subtitle) {
 
   gateResultCard.className = `gate-result-card ${state}-state`;
   if (gateResultIcon) {
-    gateResultIcon.innerText = state === 'verified' ? '✓' : (state === 'unverified' ? '✕' : '👤');
+    if (state === 'verified') {
+      gateResultIcon.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    } else if (state === 'unverified') {
+      gateResultIcon.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    } else {
+      gateResultIcon.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    }
   }
   if (gateResultTitle) gateResultTitle.innerText = title;
   if (gateResultSub) gateResultSub.innerText = subtitle;
@@ -592,7 +602,9 @@ function updateGateResult(state, title, subtitle) {
 function resetGateResultCard() {
   if (!gateResultCard) return;
   gateResultCard.className = 'gate-result-card neutral-state';
-  if (gateResultIcon) gateResultIcon.innerText = '👤';
+  if (gateResultIcon) {
+    gateResultIcon.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  }
   if (gateResultTitle) gateResultTitle.innerText = 'روبروی دوربین قرار بگیرید';
   if (gateResultSub) gateResultSub.innerText = 'سیستم در حال رصد و ثبت ورود خودکار است';
 }
@@ -1050,8 +1062,8 @@ function renderAdminTable() {
       <td><span class="tag-role">${s.grade}</span></td>
       <td>${regDate}</td>
       <td>
-        <button class="btn-action edit-btn" data-id="${s.id}">✏️ ویرایش</button>
-        <button class="btn-action del delete-btn" data-id="${s.id}">🗑️ حذف</button>
+        <button class="btn-action edit-btn" data-id="${s.id}">ویرایش</button>
+        <button class="btn-action del delete-btn" data-id="${s.id}">حذف</button>
       </td>
     `;
 
