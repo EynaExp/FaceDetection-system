@@ -20,13 +20,16 @@ if [ -f ".server.pid" ]; then
 fi
 
 # Stop by port 3000 if still bound
-if command -v lsof >/dev/null 2>&1; then
-    PORT_PID=$(lsof -t -i :3000 2>/dev/null || true)
-    if [ -n "$PORT_PID" ]; then
-        echo "Killing process on port 3000 (PID: $PORT_PID)..."
-        kill -9 "$PORT_PID" 2>/dev/null || true
-        STOPPED=1
-    fi
+PORT_PIDS=$(lsof -t -i :3000 2>/dev/null || true)
+if [ -n "$PORT_PIDS" ]; then
+    for p in $PORT_PIDS; do
+        COMM=$(ps -p "$p" -o comm= 2>/dev/null || true)
+        if [[ "$COMM" == *"node"* ]]; then
+            echo "Killing node process on port 3000 (PID: $p)..."
+            kill -9 "$p" 2>/dev/null || true
+            STOPPED=1
+        fi
+    done
 fi
 
 if [ "$STOPPED" -eq 1 ]; then

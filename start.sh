@@ -18,13 +18,17 @@ if [ ! -d "node_modules" ]; then
     npm install --omit=dev
 fi
 
-# Stop any running instance on port 3000
-if command -v lsof >/dev/null 2>&1; then
-    PID=$(lsof -t -i :3000 2>/dev/null || true)
-    if [ -n "$PID" ]; then
-        echo "Stopping existing instance on port 3000 (PID: $PID)..."
-        kill -9 "$PID" 2>/dev/null || true
-    fi
+# Stop any running node instance on port 3000
+NODE_PIDS=$(lsof -t -i :3000 2>/dev/null || true)
+if [ -n "$NODE_PIDS" ]; then
+    for p in $NODE_PIDS; do
+        # Kill only node processes
+        COMM=$(ps -p "$p" -o comm= 2>/dev/null || true)
+        if [[ "$COMM" == *"node"* ]]; then
+            echo "Stopping existing node instance (PID: $p)..."
+            kill -9 "$p" 2>/dev/null || true
+        fi
+    done
 fi
 
 # Start application in background
