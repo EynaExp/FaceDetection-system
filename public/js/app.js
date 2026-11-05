@@ -337,17 +337,8 @@ function applyTranslations() {
   if (cancelChangePassBtn) cancelChangePassBtn.innerText = t.btnCancel;
   if (saveChangePassBtn) saveChangePassBtn.innerText = t.btnSaveNewPass;
 
-  renderAttendanceTable();
-  renderAdminTable();
-}
-
-// Language toggle event
-if (langToggleBtn) {
-  langToggleBtn.addEventListener('click', () => {
-    currentLang = currentLang === 'fa' ? 'en' : 'fa';
-    localStorage.setItem('school_app_lang', currentLang);
-    applyTranslations();
-  });
+  if (typeof renderAttendanceTable === 'function') renderAttendanceTable();
+  if (typeof renderAdminTable === 'function') renderAdminTable();
 }
 
 // 3-step guided enrollment
@@ -453,6 +444,14 @@ const gateCamStatusIndicator = document.getElementById('gateCamStatusIndicator')
 const thresholdSlider = document.getElementById('thresholdSlider');
 const thresholdValDisplay = document.getElementById('thresholdValDisplay');
 const langToggleBtn = document.getElementById('langToggleBtn');
+
+if (langToggleBtn) {
+  langToggleBtn.addEventListener('click', () => {
+    currentLang = currentLang === 'fa' ? 'en' : 'fa';
+    localStorage.setItem('school_app_lang', currentLang);
+    applyTranslations();
+  });
+}
 
 // Admin Authentication Elements
 const adminAuthBtn = document.getElementById('adminAuthBtn');
