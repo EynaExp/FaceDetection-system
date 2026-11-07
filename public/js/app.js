@@ -449,8 +449,9 @@ const langToggleBtn = document.getElementById('langToggleBtn');
 const schoolOpenTimeInput = document.getElementById('schoolOpenTimeInput');
 const schoolCloseTimeInput = document.getElementById('schoolCloseTimeInput');
 const saveHoursBtn = document.getElementById('saveHoursBtn');
-const baleUsernameInput = document.getElementById('baleUsernameInput');
 const baleTokenInput = document.getElementById('baleTokenInput');
+const testBaleConnBtn = document.getElementById('testBaleConnBtn');
+const baleTestStatus = document.getElementById('baleTestStatus');
 const baleActiveChk = document.getElementById('baleActiveChk');
 const autoAbsentAlertChk = document.getElementById('autoAbsentAlertChk');
 const autoAbsentTimeInput = document.getElementById('autoAbsentTimeInput');
@@ -1558,7 +1559,6 @@ async function loadSchoolSettings() {
       if (baleActiveChk) baleActiveChk.checked = d.baleEnabled === true;
       if (autoAbsentAlertChk) autoAbsentAlertChk.checked = d.autoAbsentAlert !== false;
       if (autoAbsentTimeInput) autoAbsentTimeInput.value = d.autoAbsentTime || "08:30";
-      if (baleUsernameInput) baleUsernameInput.value = d.baleBotUsername || '';
 
       if (baleDisplayUsername) {
         baleDisplayUsername.innerText = d.baleBotUsername ? `@${d.baleBotUsername}` : 'ثبت‌نشده';
@@ -1609,7 +1609,6 @@ if (saveHoursBtn) {
 if (saveBaleBtn) {
   saveBaleBtn.addEventListener('click', async () => {
     const baleToken = baleTokenInput ? baleTokenInput.value.trim() : '';
-    const baleBotUsername = baleUsernameInput ? baleUsernameInput.value.trim() : '';
     const baleEnabled = baleActiveChk ? baleActiveChk.checked : false;
     const autoAbsentAlert = autoAbsentAlertChk ? autoAbsentAlertChk.checked : true;
     const autoAbsentTime = autoAbsentTimeInput ? autoAbsentTimeInput.value.trim() : '08:30';
@@ -1619,7 +1618,7 @@ if (saveBaleBtn) {
       const res = await fetch('/api/config/hours', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ baleToken, baleBotUsername, baleEnabled, autoAbsentAlert, autoAbsentTime })
+        body: JSON.stringify({ baleToken, baleEnabled, autoAbsentAlert, autoAbsentTime })
       });
 
       if (res.status === 403) {
@@ -1641,6 +1640,56 @@ if (saveBaleBtn) {
       alert('خطا در ارتباط با سرور: ' + e.message);
     } finally {
       saveBaleBtn.disabled = false;
+    }
+  });
+}
+
+// Test Bale Bot Connection Button (Only needs the Token / Hash)
+if (testBaleConnBtn) {
+  testBaleConnBtn.addEventListener('click', async () => {
+    const token = baleTokenInput ? baleTokenInput.value.trim() : '';
+    baleTestStatus.classList.remove('hidden');
+    baleTestStatus.className = 'bale-test-result';
+    baleTestStatus.innerText = 'در حال ارسال درخواست تست به سرور بله...';
+
+    try {
+      testBaleConnBtn.disabled = true;
+      const res = await fetch('/api/bale/test-connection', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ token })
+      });
+
+      if (res.status === 403) {
+        baleTestStatus.className = 'bale-test-result error';
+        baleTestStatus.innerText = 'خطای دسترسی: لطفاً ابتدا به عنوان مدیر وارد شوید.';
+        return;
+      }
+
+      const d = await res.json();
+      if (d.success && d.bot) {
+        baleTestStatus.className = 'bale-test-result success';
+        baleTestStatus.innerHTML = `✓ اتصال با موفقیت برقرار شد!
+نام بازو: <strong>${d.bot.firstName || ''}</strong> (@${d.bot.username || 'بدون نام کاربری'})
+شناسه عددی (ID): <code>${d.bot.id}</code>`;
+
+        if (d.bot.username) {
+          if (baleDisplayUsername) baleDisplayUsername.innerText = `@${d.bot.username}`;
+          if (baleLinkWrap && baleDisplayLink) {
+            baleLinkWrap.classList.remove('hidden');
+            baleDisplayLink.href = `https://ble.ir/${d.bot.username}`;
+            baleDisplayLink.innerText = `ble.ir/${d.bot.username}`;
+          }
+        }
+      } else {
+        baleTestStatus.className = 'bale-test-result error';
+        baleTestStatus.innerText = 'خطا در اتصال: ' + (d.error || 'توکن نامعتبر است');
+      }
+    } catch (err) {
+      baleTestStatus.className = 'bale-test-result error';
+      baleTestStatus.innerText = 'خطای شبکه در ارتباط با سرور: ' + err.message;
+    } finally {
+      testBaleConnBtn.disabled = false;
     }
   });
 }

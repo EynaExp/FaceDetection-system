@@ -284,24 +284,23 @@
         <h4 class="subtab-heading">سامانه اطلاع‌رسانی به اولیا در بله</h4>
         <div class="bale-info-banner">
           <div>
-            <strong>شناسه بازوی مدرسه:</strong> <code id="baleDisplayUsername">ثبت‌نشده</code>
+            <strong>شناسه بازوی متصل:</strong> <code id="baleDisplayUsername">ثبت‌نشده</code>
           </div>
           <div id="baleLinkWrap" class="hidden">
             <strong>لینک مستقیم بازو:</strong> <a id="baleDisplayLink" href="#" target="_blank" style="color:var(--primary); font-weight:bold;"></a>
           </div>
           <p style="font-size:0.78rem; color:var(--text-sub); margin-top:6px;">
-            اولیا می‌توانند با شروع گفتگو (/start) در بازوی اختصاصی مدرسه و وارد کردن کد ملی و شماره دانش‌آموزی فرزندشان، تایید هویت شده و پیامک تردد را به صورت خودکار دریافت نمایند.
+            تنها وارد کردن هش / توکن بازو کافی است. سامانه نام کاربری و آدرس بازو را به صورت خودکار شناسایی و ذخیره می‌کند.
           </p>
         </div>
 
         <div class="form-group" style="margin-top:14px;">
-          <label>شناسه بازوی بله (Bot Username):</label>
-          <input type="text" id="baleUsernameInput" class="clean-input" placeholder="مثال: my_school_bot">
-        </div>
-
-        <div class="form-group" style="margin-top:14px;">
-          <label>توکن دسترسی بازوی بله (Bale Bot Token):</label>
-          <input type="password" id="baleTokenInput" class="clean-input" placeholder="توکن دریافتی از بازوساز بله (BotFather)">
+          <label>توکن / هش بازوی بله (Bale Bot Token):</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input type="password" id="baleTokenInput" class="clean-input" placeholder="توکن یا هش بازو (مثال: 123456789:ABC_def...)" style="flex-grow:1;">
+            <button id="testBaleConnBtn" class="btn btn-secondary" style="white-space:nowrap;">تست اتصال به بله</button>
+          </div>
+          <div id="baleTestStatus" class="bale-test-result hidden" style="margin-top:8px;"></div>
         </div>
 
         <div class="form-group" style="margin-top:14px;">

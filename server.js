@@ -483,6 +483,49 @@ app.get('/api/config/hours', (req, res) => {
   }
 });
 
+// Test Bale Bot Connection API (fetches bot info directly using the token/hash)
+app.post('/api/bale/test-connection', requireAdmin, async (req, res) => {
+  try {
+    const { token } = req.body;
+    const cfg = getConfig();
+    const tokenToTest = (token !== undefined && token !== null ? String(token).trim() : '') || cfg.baleToken;
+
+    if (!tokenToTest) {
+      return res.status(400).json({ success: false, error: 'توکن یا هش بازو وارد نشده است' });
+    }
+
+    const baleApiUrl = `https://tapi.bale.ai/bot${tokenToTest}/getMe`;
+    const response = await fetch(baleApiUrl, { method: 'GET' });
+    const data = await response.json();
+
+    if (data.ok && data.result) {
+      // Auto-save bot username from getMe response if available
+      if (data.result.username) {
+        cfg.baleBotUsername = data.result.username;
+        saveConfig(cfg);
+      }
+      res.json({
+        success: true,
+        bot: {
+          id: data.result.id,
+          username: data.result.username,
+          firstName: data.result.first_name
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: data.description || 'توکن یا هش بازو نامعتبر است'
+      });
+    }
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: 'خطا در برقراری ارتباط با سرور بله: ' + err.message
+    });
+  }
+});
+
 app.post('/api/config/hours', requireAdmin, (req, res) => {
   try {
     const { openTime, closeTime, days, baleEnabled, baleToken, baleBotUsername, autoAbsentAlert, autoAbsentTime } = req.body;

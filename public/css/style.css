@@ -878,6 +878,27 @@ canvas {
   font-weight: 600;
 }
 
+.bale-test-result {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+}
+
+.bale-test-result.success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.bale-test-result.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
 .backup-action-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
