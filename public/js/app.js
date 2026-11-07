@@ -285,18 +285,12 @@ function applyTranslations() {
   // Settings Tab
   const settingsTitle = document.querySelector('#tabSettings h3');
   if (settingsTitle) settingsTitle.innerText = t.settingsTitle;
-  const settingsLabels = document.querySelectorAll('#tabSettings .form-group label');
-  if (settingsLabels[0]) settingsLabels[0].innerText = t.settingsSourceLbl;
   if (sourceSelect && sourceSelect.options.length >= 2) {
     sourceSelect.options[0].text = t.optWebcam;
     sourceSelect.options[1].text = t.optCctv;
   }
-  if (settingsLabels[1]) settingsLabels[1].innerText = t.settingsDeviceLbl;
-  if (settingsLabels[2]) settingsLabels[2].innerText = t.settingsRtspLbl;
-  if (settingsLabels[3]) settingsLabels[3].innerText = t.settingsCamStatusLbl;
-  if (settingsLabels[4]) settingsLabels[4].innerText = t.settingsThresholdLbl;
-  const thresholdHint = document.querySelector('#tabSettings p');
-  if (thresholdHint) thresholdHint.innerText = t.settingsThresholdHint;
+  const thresholdLabel = document.querySelector('#subtab-set-ai label');
+  if (thresholdLabel) thresholdLabel.innerText = t.settingsThresholdLbl;
 
   // Admin Directory Tab
   if (memberSearchInput) memberSearchInput.placeholder = t.adminSearchPh;
