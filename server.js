@@ -1,7 +1,8 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,6 +10,7 @@ const DB_FILE = path.join(__dirname, 'database', 'students.json');
 const PHOTOS_DIR = path.join(__dirname, 'database', 'student_photos');
 const ATTENDANCE_FILE = path.join(__dirname, 'database', 'attendance.json');
 const CONFIG_FILE = path.join(__dirname, 'database', 'config.json');
+const PARENTS_FILE = path.join(__dirname, 'database', 'bale_parents.json');
 
 [path.join(__dirname, 'database'), PHOTOS_DIR].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -20,17 +22,23 @@ if (!fs.existsSync(DB_FILE)) {
 if (!fs.existsSync(ATTENDANCE_FILE)) {
   fs.writeFileSync(ATTENDANCE_FILE, JSON.stringify({}, null, 2));
 }
-if (!fs.existsSync(CONFIG_FILE)) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify({ adminPassword: process.env.ADMIN_PASSWORD || 'admin123' }, null, 2));
+if (!fs.existsSync(PARENTS_FILE)) {
+  fs.writeFileSync(PARENTS_FILE, JSON.stringify([], null, 2));
 }
-
-function getAdminPassword() {
-  try {
-    const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    return config.adminPassword || 'admin123';
-  } catch (e) {
-    return 'admin123';
-  }
+if (!fs.existsSync(CONFIG_FILE)) {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify({
+    adminPassword: process.env.ADMIN_PASSWORD || 'admin123',
+    baleToken: process.env.BALE_TOKEN || '',
+    baleBotUsername: process.env.BALE_BOT_USERNAME || '',
+    baleEnabled: false,
+    autoAbsentAlert: true,
+    autoAbsentTime: "08:30",
+    schoolHours: {
+      openTime: "07:00",
+      closeTime: "14:30",
+      days: [0, 1, 2, 3, 6] // Saturday(6) through Wednesday(3), Friday=5
+    }
+  }, null, 2));
 }
 
 function readJSON(file) {
@@ -43,6 +51,32 @@ function readJSON(file) {
 
 function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+function getConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    if (cfg.baleToken === undefined) cfg.baleToken = '';
+    if (cfg.baleBotUsername === undefined) cfg.baleBotUsername = '';
+    if (cfg.baleEnabled === undefined) cfg.baleEnabled = false;
+    if (cfg.autoAbsentAlert === undefined) cfg.autoAbsentAlert = true;
+    if (!cfg.autoAbsentTime) cfg.autoAbsentTime = "08:30";
+    return cfg;
+  } catch (e) {
+    return {
+      adminPassword: 'admin123',
+      baleToken: '',
+      baleBotUsername: '',
+      baleEnabled: false,
+      autoAbsentAlert: true,
+      autoAbsentTime: "08:30",
+      schoolHours: { openTime: "07:00", closeTime: "14:30", days: [0, 1, 2, 3, 6] }
+    };
+  }
+}
+
+function saveConfig(cfg) {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
 }
 
 function getTodayKey() {
@@ -63,8 +97,8 @@ const activeAdminTokens = new Set();
 
 app.post('/api/admin/login', (req, res) => {
   const { password } = req.body;
-  const currentPass = getAdminPassword();
-  if (password === currentPass) {
+  const cfg = getConfig();
+  if (password === cfg.adminPassword) {
     const token = 'token_' + Date.now() + '_' + Math.random().toString(36).substring(2);
     activeAdminTokens.add(token);
     res.json({ success: true, token });
@@ -73,7 +107,6 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
-// Change Admin Password
 app.post('/api/admin/change-password', requireAdmin, (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
@@ -81,13 +114,13 @@ app.post('/api/admin/change-password', requireAdmin, (req, res) => {
       return res.status(400).json({ success: false, error: 'رمز جدید باید حداقل ۴ کاراکتر باشد' });
     }
 
-    const currentPass = getAdminPassword();
-    if (oldPassword !== currentPass) {
+    const cfg = getConfig();
+    if (oldPassword !== cfg.adminPassword) {
       return res.status(400).json({ success: false, error: 'رمز عبور فعلی نادرست است' });
     }
 
-    const config = { adminPassword: newPassword.trim() };
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    cfg.adminPassword = newPassword.trim();
+    saveConfig(cfg);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -100,7 +133,6 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ success: true });
 });
 
-// Admin Authentication Middleware for sensitive APIs
 function requireAdmin(req, res, next) {
   const token = req.headers['x-admin-token'];
   if (token && activeAdminTokens.has(token)) {
@@ -121,6 +153,7 @@ app.get('/api/students', (req, res) => {
     if (search) {
       filtered = filtered.filter(s =>
         (s.name && s.name.toLowerCase().includes(search)) ||
+        (s.nationalId && s.nationalId.toLowerCase().includes(search)) ||
         (s.studentCode && s.studentCode.toLowerCase().includes(search)) ||
         (s.id && s.id.toLowerCase().includes(search))
       );
@@ -138,9 +171,8 @@ app.get('/api/students', (req, res) => {
 // Register / Enroll Student with Biometrics (Admin only)
 app.post('/api/students/register', requireAdmin, (req, res) => {
   try {
-    const { name, studentCode, grade, photo, descriptor, descriptors } = req.body;
+    const { name, nationalId, studentCode, grade, photo, descriptor, descriptors } = req.body;
 
-    // Support both multi-angle array of descriptors and single descriptor
     let angleDescriptors = [];
     if (Array.isArray(descriptors) && descriptors.length > 0) {
       angleDescriptors = descriptors.map(d => Array.from(d));
@@ -170,11 +202,12 @@ app.post('/api/students/register', requireAdmin, (req, res) => {
     const newStudent = {
       id: studentId,
       name: name.trim(),
+      nationalId: (nationalId || '').trim(), // کد ملی دانش‌آموز
       studentCode: (studentCode || String(Date.now()).slice(-6)).trim(),
       grade: (grade || 'کلاس عمومی').trim(),
       photoUrl: photoFilename ? `/student_photos/${photoFilename}` : null,
-      descriptors: angleDescriptors, // Store all angle biometric vectors (front, left, right)
-      descriptor: angleDescriptors[0], // primary reference
+      descriptors: angleDescriptors,
+      descriptor: angleDescriptors[0],
       registeredAt: Date.now()
     };
 
@@ -191,13 +224,14 @@ app.post('/api/students/register', requireAdmin, (req, res) => {
 app.put('/api/students/:id', requireAdmin, (req, res) => {
   try {
     const { id } = req.params;
-    const { name, studentCode, grade } = req.body;
+    const { name, nationalId, studentCode, grade } = req.body;
     const students = readJSON(DB_FILE);
     const student = students.find(s => s.id === id);
 
     if (!student) return res.status(404).json({ success: false, error: 'Student not found' });
 
     if (name && name.trim()) student.name = name.trim();
+    if (nationalId !== undefined) student.nationalId = nationalId.trim();
     if (studentCode && studentCode.trim()) student.studentCode = studentCode.trim();
     if (grade && grade.trim()) student.grade = grade.trim();
     student.updatedAt = Date.now();
@@ -245,6 +279,7 @@ app.get('/api/attendance/today', (req, res) => {
       return {
         id: s.id,
         name: s.name,
+        nationalId: s.nationalId || '',
         studentCode: s.studentCode,
         grade: s.grade,
         photoUrl: s.photoUrl,
@@ -289,6 +324,7 @@ app.post('/api/attendance/verify', (req, res) => {
       existing = {
         studentId: student.id,
         name: student.name,
+        nationalId: student.nationalId || '',
         studentCode: student.studentCode,
         grade: student.grade,
         status: 'PRESENT',
@@ -297,6 +333,9 @@ app.post('/api/attendance/verify', (req, res) => {
       attendanceMap[today].unshift(existing);
       writeJSON(ATTENDANCE_FILE, attendanceMap);
       isFirstToday = true;
+
+      // Send Instant Notification to Parent via Bale Bot
+      notifyParentViaBale(student, existing.timestamp);
     }
 
     res.json({ success: true, isFirstToday, record: existing });
@@ -305,7 +344,7 @@ app.post('/api/attendance/verify', (req, res) => {
   }
 });
 
-// Manual attendance toggle (present / absent) or submit present by studentId/studentCode
+// Manual attendance toggle (present / absent) or submit present by studentId/studentCode/nationalId
 app.post('/api/attendance/manual', requireAdmin, (req, res) => {
   try {
     const { studentId, studentCode, date, status } = req.body;
@@ -315,15 +354,18 @@ app.post('/api/attendance/manual', requireAdmin, (req, res) => {
 
     const students = readJSON(DB_FILE);
     let student = null;
-    if (studentId) {
-      student = students.find(s => s.id === studentId || s.studentCode === studentId);
-    }
-    if (!student && studentCode) {
-      student = students.find(s => s.studentCode === String(studentCode).trim() || s.id === String(studentCode).trim());
+    const query = String(studentId || studentCode || '').trim();
+
+    if (query) {
+      student = students.find(s =>
+        s.id === query ||
+        s.studentCode === query ||
+        (s.nationalId && s.nationalId === query)
+      );
     }
 
     if (!student) {
-      return res.status(404).json({ success: false, error: 'دانش‌آموزی با این شناسه یا کد یافت نشد' });
+      return res.status(404).json({ success: false, error: 'دانش‌آموزی با این شناسه، کدملی یا کد دانش‌آموزی یافت نشد' });
     }
 
     const newStatus = status ? status.toUpperCase() : 'PRESENT';
@@ -331,14 +373,17 @@ app.post('/api/attendance/manual', requireAdmin, (req, res) => {
     if (newStatus === 'PRESENT') {
       const idx = attendanceMap[targetDate].findIndex(l => l.studentId === student.id);
       if (idx === -1) {
-        attendanceMap[targetDate].unshift({
+        const record = {
           studentId: student.id,
           name: student.name,
+          nationalId: student.nationalId || '',
           studentCode: student.studentCode,
           grade: student.grade,
           status: 'PRESENT',
           timestamp: Date.now()
-        });
+        };
+        attendanceMap[targetDate].unshift(record);
+        notifyParentViaBale(student, record.timestamp);
       }
     } else {
       // Mark absent
@@ -352,7 +397,328 @@ app.post('/api/attendance/manual', requireAdmin, (req, res) => {
   }
 });
 
-// 3. CCTV STREAM
+// Export attendance as CSV (Excel compatible with UTF-8 BOM)
+app.get('/api/attendance/export-csv', requireAdmin, (req, res) => {
+  try {
+    const targetDate = req.query.date || getTodayKey();
+    const students = readJSON(DB_FILE);
+    const attendanceMap = readJSON(ATTENDANCE_FILE);
+    const dayLogs = attendanceMap[targetDate] || [];
+    const presentIds = new Set(dayLogs.map(l => l.studentId));
+
+    // UTF-8 BOM so Excel opens Persian text properly
+    let csv = '\uFEFFنام و نام خانوادگی,کد ملی,کد دانش آموزی,کلاس / پایه,وضعیت,ساعت ثبت ورود,تاریخ\n';
+
+    students.forEach(s => {
+      const log = dayLogs.find(l => l.studentId === s.id);
+      const isPresent = presentIds.has(s.id);
+      const statusText = isPresent ? 'حاضر' : 'غایب';
+      const timeStr = log ? new Date(log.timestamp).toLocaleTimeString('fa-IR') : '-';
+
+      csv += `"${s.name}","${s.nationalId || '-'}","${s.studentCode || '-'}","${s.grade}","${statusText}","${timeStr}","${targetDate}"\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="attendance_${targetDate}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Broadcast absentee notifications to parents via Bale (Item 6)
+app.post('/api/attendance/notify-absents', requireAdmin, async (req, res) => {
+  try {
+    const today = req.query.date || getTodayKey();
+    const students = readJSON(DB_FILE);
+    const attendanceMap = readJSON(ATTENDANCE_FILE);
+    const todayLogs = attendanceMap[today] || [];
+    const presentIds = new Set(todayLogs.map(l => l.studentId));
+
+    const absentStudents = students.filter(s => !presentIds.has(s.id));
+    const parents = readJSON(PARENTS_FILE);
+    const dateStr = new Date().toLocaleDateString('fa-IR');
+
+    let notifiedCount = 0;
+
+    for (const student of absentStudents) {
+      const linkedParents = parents.filter(p => p.studentId === student.id);
+      for (const parent of linkedParents) {
+        const msg = `⚠️ هشدار غیبت از مدرسه
+
+ولی گرامی،
+به اطلاع می‌رساند فرزند شما «${student.name}» (پایه/کلاس: ${student.grade}) امروز ${dateStr} تا این لحظه در مدرسه حضور نیافته و وضعیت ایشان «غایب» ثبت شده است.
+
+در صورت موجه بودن غیبت، لطفاً به دفتر مدرسه اطلاع دهید.
+با احترام، مدیریت مدرسه`;
+
+        sendBaleMessage(parent.chatId, msg);
+        notifiedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      absentTotal: absentStudents.length,
+      notifiedParents: notifiedCount
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+app.get('/api/config/hours', (req, res) => {
+  try {
+    const cfg = getConfig();
+    res.json({
+      success: true,
+      schoolHours: cfg.schoolHours || { openTime: "07:00", closeTime: "14:30", days: [0, 1, 2, 3, 6] },
+      baleEnabled: cfg.baleEnabled === true,
+      baleBotUsername: cfg.baleBotUsername || '',
+      autoAbsentAlert: cfg.autoAbsentAlert !== false,
+      autoAbsentTime: cfg.autoAbsentTime || "08:30",
+      hasBaleToken: Boolean(cfg.baleToken)
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/config/hours', requireAdmin, (req, res) => {
+  try {
+    const { openTime, closeTime, days, baleEnabled, baleToken, baleBotUsername, autoAbsentAlert, autoAbsentTime } = req.body;
+    const cfg = getConfig();
+
+    if (openTime && closeTime) {
+      cfg.schoolHours = {
+        openTime: openTime.trim(),
+        closeTime: closeTime.trim(),
+        days: Array.isArray(days) ? days : [0, 1, 2, 3, 6]
+      };
+    }
+    if (baleEnabled !== undefined) cfg.baleEnabled = Boolean(baleEnabled);
+    if (baleToken !== undefined) cfg.baleToken = baleToken.trim();
+    if (baleBotUsername !== undefined) cfg.baleBotUsername = baleBotUsername.trim().replace(/^@/, '');
+    if (autoAbsentAlert !== undefined) cfg.autoAbsentAlert = Boolean(autoAbsentAlert);
+    if (autoAbsentTime && autoAbsentTime.trim()) cfg.autoAbsentTime = autoAbsentTime.trim();
+
+    saveConfig(cfg);
+    res.json({ success: true, config: cfg });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4. BACKUP: EXPORT & IMPORT ENTIRE DATABASE AS 1 ZIP FILE (Item 3)
+app.get('/api/backup/export', requireAdmin, (req, res) => {
+  try {
+    const backupName = `school_backup_${Date.now()}.zip`;
+    const tempZipPath = path.join('/tmp', backupName);
+
+    // Create zip of database folder
+    execSync(`zip -r -q "${tempZipPath}" database/`, { cwd: __dirname });
+
+    res.download(tempZipPath, backupName, err => {
+      try { if (fs.existsSync(tempZipPath)) fs.unlinkSync(tempZipPath); } catch (e) {}
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Backup generation failed: ' + err.message });
+  }
+});
+
+const upload = multer({ dest: '/tmp/school_uploads/' });
+app.post('/api/backup/import', requireAdmin, upload.single('backupZip'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'فایل زیپ پشتیبان انتخاب نشده است' });
+    }
+
+    const zipFile = req.file.path;
+    const tempExtractDir = path.join('/tmp', 'extracted_backup_' + Date.now());
+    fs.mkdirSync(tempExtractDir, { recursive: true });
+
+    // Unzip uploaded file
+    execSync(`unzip -q -o "${zipFile}" -d "${tempExtractDir}"`);
+
+    // Verify database folder exists inside zip
+    const sourceDbDir = fs.existsSync(path.join(tempExtractDir, 'database'))
+      ? path.join(tempExtractDir, 'database')
+      : tempExtractDir;
+
+    // Restore files
+    ['students.json', 'attendance.json', 'bale_parents.json', 'config.json'].forEach(f => {
+      const src = path.join(sourceDbDir, f);
+      const dst = path.join(__dirname, 'database', f);
+      if (fs.existsSync(src)) {
+        fs.copyFileSync(src, dst);
+      }
+    });
+
+    const srcPhotos = path.join(sourceDbDir, 'student_photos');
+    if (fs.existsSync(srcPhotos)) {
+      const photos = fs.readdirSync(srcPhotos);
+      photos.forEach(photo => {
+        fs.copyFileSync(path.join(srcPhotos, photo), path.join(PHOTOS_DIR, photo));
+      });
+    }
+
+    // Cleanup temp
+    try {
+      execSync(`rm -rf "${tempExtractDir}" "${zipFile}"`);
+    } catch (e) {}
+
+    res.json({ success: true, message: 'اطلاعات با موفقیت بازیابی شد' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'خطا در بازگردانی فایل پشتیبان: ' + err.message });
+  }
+});
+
+// 5. BALE MESSENGER BOT FOR PARENTS (Interactive parent verification & notification)
+const parentSessions = new Map(); // chatId -> { step, studentCode, nationalId }
+
+async function sendBaleMessage(chatId, text, replyMarkup = null) {
+  const cfg = getConfig();
+  if (!cfg.baleToken) return;
+  try {
+    const body = { chat_id: chatId, text };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+
+    await fetch(`https://tapi.bale.ai/bot${cfg.baleToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    console.error('Bale send error:', err.message);
+  }
+}
+
+async function notifyParentViaBale(student, entryTimestamp) {
+  const cfg = getConfig();
+  if (!cfg.baleEnabled || !cfg.baleToken) return;
+
+  const parents = readJSON(PARENTS_FILE);
+  // Find linked verified parents for this student
+  const matchedParents = parents.filter(p => p.studentId === student.id);
+  if (matchedParents.length === 0) return;
+
+  const timeStr = new Date(entryTimestamp).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = new Date(entryTimestamp).toLocaleDateString('fa-IR');
+
+  const message = `🔔 اطلاع‌رسانی ورود به مدرسه
+
+ولی گرامی،
+فرزند شما «${student.name}» (پایه/کلاس: ${student.grade})
+در تاریخ ${dateStr} و ساعت ${timeStr} از گیت مدرسه عبور کرده و حضور وی با چهره ثبت گردید.
+
+با احترام،
+مدیریت مدرسه`;
+
+  for (const parent of matchedParents) {
+    sendBaleMessage(parent.chatId, message);
+  }
+}
+
+// Long-polling worker for Bale Bot
+let balePollOffset = 0;
+async function pollBaleUpdates() {
+  const cfg = getConfig();
+  if (!cfg.baleToken) {
+    setTimeout(pollBaleUpdates, 5000);
+    return;
+  }
+
+  try {
+    const res = await fetch(`https://tapi.bale.ai/bot${cfg.baleToken}/getUpdates?offset=${balePollOffset}&timeout=5`);
+    const data = await res.json();
+
+    if (data.ok && Array.isArray(data.result)) {
+      for (const update of data.result) {
+        balePollOffset = update.update_id + 1;
+        if (update.message && update.message.text) {
+          await handleBaleIncomingMessage(update.message);
+        }
+      }
+    }
+  } catch (err) {
+    // Network or temporary timeout
+  }
+
+  setTimeout(pollBaleUpdates, 1500);
+}
+
+// Guided Parent Questioning / Authentication Flow
+async function handleBaleIncomingMessage(msg) {
+  const chatId = msg.chat.id;
+  const text = msg.text.trim();
+  const session = parentSessions.get(chatId) || { step: 'IDLE' };
+
+  if (text === '/start' || text === 'شروع') {
+    parentSessions.set(chatId, { step: 'ASK_CODE' });
+    await sendBaleMessage(chatId, `سلام، به سامانه اطلاع‌رسانی تردد مدرسه خوش آمدید.
+
+جهت احراز هویت شما به عنوان ولی دانش‌آموز، لطفاً «شماره دانش‌آموزی» فرزند خود را ارسال فرمایید:`);
+    return;
+  }
+
+  if (session.step === 'ASK_CODE') {
+    const students = readJSON(DB_FILE);
+    const matched = students.find(s => s.studentCode === text);
+
+    if (!matched) {
+      await sendBaleMessage(chatId, `دانش‌آموزی با شماره دانش‌آموزی «${text}» در سامانه مدرسه یافت نشد.
+لطفاً مجدداً شماره دانش‌آموزی را با دقت ارسال کنید یا /start را بزنید:`);
+      return;
+    }
+
+    session.step = 'ASK_NATIONAL_ID';
+    session.matchedStudent = matched;
+    parentSessions.set(chatId, session);
+
+    await sendBaleMessage(chatId, `شماره دانش‌آموزی تایید شد.
+حالا جهت اطمینان نهایی و تایید هویت والدین، لطفاً «کد ملی ۱۰ رقمی» فرزندتان («${matched.name}») را وارد کنید:`);
+    return;
+  }
+
+  if (session.step === 'ASK_NATIONAL_ID') {
+    const student = session.matchedStudent;
+    // Check if nationalId matches database (or if student has no nationalId yet, match studentCode/allow first setup)
+    const dbNationalId = (student.nationalId || '').trim();
+
+    if (dbNationalId && dbNationalId !== text) {
+      await sendBaleMessage(chatId, `کد ملی وارد شده با مشخصات دانش‌آموز «${student.name}» مطابقت ندارد!
+لطفاً مجدداً کد ملی ۱۰ رقمی را دقیق ارسال کنید:`);
+      return;
+    }
+
+    // Successfully verified parent!
+    const parents = readJSON(PARENTS_FILE);
+    const existing = parents.find(p => p.chatId === chatId && p.studentId === student.id);
+    if (!existing) {
+      parents.push({
+        chatId,
+        studentId: student.id,
+        studentName: student.name,
+        linkedAt: Date.now()
+      });
+      writeJSON(PARENTS_FILE, parents);
+    }
+
+    parentSessions.delete(chatId);
+    await sendBaleMessage(chatId, `احراز هویت با موفقیت انجام شد!
+
+شما به عنوان ولی دانش‌آموز «${student.name}» تایید شدید.
+از این پس به محض عبور فرزندتان از گیت ورودی مدرسه، پیام ورود ایشان به همراه ساعت دقیق به این گفت‌وگو ارسال خواهد شد.`);
+    return;
+  }
+
+  // Default response
+  await sendBaleMessage(chatId, `پیام دریافت شد. جهت اتصال به پرونده دانش‌آموز لطفاً دستور /start را ارسال کنید.`);
+}
+
+// Start Bale Worker in background
+pollBaleUpdates();
+
+// 6. CCTV STREAM
 function stopCctvProcess() {
   if (ffmpegProcess) {
     try { ffmpegProcess.kill('SIGKILL'); } catch (e) {}

@@ -117,7 +117,8 @@
 
         <div class="form-bottom">
           <input type="text" id="memberNameInput" class="clean-input" placeholder="نام و نام خانوادگی دانش‌آموز *">
-          <input type="text" id="studentCodeInput" class="clean-input" placeholder="شماره دانش‌آموزی / کدملی">
+          <input type="text" id="studentNationalIdInput" class="clean-input" placeholder="کد ملی ۱۰ رقمی دانش‌آموز *">
+          <input type="text" id="studentCodeInput" class="clean-input" placeholder="شماره دانش‌آموزی (اختیاری)">
           <input type="text" id="studentGradeInput" class="clean-input" placeholder="کلاس / پایه (مثال: دهم تجربی)">
           <button id="nextStepBtn" class="btn btn-secondary" disabled>ثبت این زاویه</button>
           <button id="submitMemberBtn" class="btn btn-success hidden">ثبت نام در سامانه مدرسه</button>
@@ -176,6 +177,9 @@
 
           <input type="text" id="attendanceSearchInput" class="clean-input" placeholder="جستجوی نام، کد یا کلاس...">
           <button id="refreshAttendanceBtn" class="btn btn-secondary">بروزرسانی وضعیت</button>
+          <!-- Export to Excel and Send Absent Alerts to Parents -->
+          <button id="exportCsvBtn" class="btn btn-secondary">خروجی اکسل (CSV)</button>
+          <button id="notifyAbsentsBtn" class="btn btn-secondary" style="color:#b91c1c; border-color:#fca5a5;">پیامک غیبت به اولیا در بله</button>
         </div>
       </div>
 
@@ -200,14 +204,25 @@
     </div>
   </main>
 
-  <!-- 5. SETTINGS PANEL (ADMIN ONLY) -->
+  <!-- 5. SETTINGS PANEL (ADMIN ONLY - SUBMENU ORGANIZED) -->
   <main id="tabSettings" class="main-container">
-    <div class="clean-card" style="max-width:760px; margin:0 auto;">
+    <div class="clean-card" style="max-width:880px; margin:0 auto;">
       <div class="card-top">
-        <h3>تنظیمات دوربین گیت و سیستم</h3>
+        <h3>تنظیمات مدیریت مدرسه و سامانه</h3>
       </div>
 
-      <div class="settings-content">
+      <!-- Settings Sub-Navigation Tabs -->
+      <div class="settings-subnav">
+        <button class="subnav-btn active" data-subtab="set-camera">دوربین گیت</button>
+        <button class="subnav-btn" data-subtab="set-hours">ساعات و روزهای مدرسه</button>
+        <button class="subnav-btn" data-subtab="set-bale">اطلاع‌رسانی بله (والدین)</button>
+        <button class="subnav-btn" data-subtab="set-backup">پشتیبان‌گیری (Backup)</button>
+        <button class="subnav-btn" data-subtab="set-ai">دقت هوش مصنوعی</button>
+      </div>
+
+      <!-- Subtab 1: Camera Setup -->
+      <div id="subtab-set-camera" class="settings-subtab-pane active">
+        <h4 class="subtab-heading">پیکربندی دوربین ورودی</h4>
         <div class="form-group">
           <label>منبع تصویر گیت ورودی:</label>
           <select id="sourceSelect" class="clean-select" style="width:100%;">
@@ -226,25 +241,133 @@
           <input type="text" id="rtspUrlInput" class="clean-input" style="width:100%;" placeholder="rtsp://admin:pass@192.168.1.100:554/stream1" value="rtsp://">
         </div>
 
-        <div class="form-group" style="margin-top:14px;">
-          <label>وضعیت اتصال دوربین گیت:</label>
+        <div class="form-group" style="margin-top:16px;">
+          <label>کنترل دستی اتصال تصویر:</label>
           <div style="display:flex; gap:10px; align-items:center;">
             <button id="toggleGateCamBtn" class="btn btn-main">روشن کردن دوربین گیت</button>
             <span id="gateCamStatusIndicator" class="badge-tag blue">آماده</span>
           </div>
         </div>
+      </div>
 
-        <hr style="border:none; border-top:1px solid var(--border); margin:20px 0;">
-
-        <div class="form-group">
-          <label>آستانه دقت تشخیص چهره (Match Threshold):</label>
-          <div style="display:flex; gap:12px; align-items:center;">
-            <input type="range" id="thresholdSlider" min="0.40" max="0.65" step="0.01" value="0.54" style="flex-grow:1;">
-            <span id="thresholdValDisplay" style="font-weight:bold; width:48px;">0.54</span>
+      <!-- Subtab 2: School Hours -->
+      <div id="subtab-set-hours" class="settings-subtab-pane">
+        <h4 class="subtab-heading">ساعت و روزهای کاری مدرسه</h4>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <div class="form-group">
+            <label>ساعت بازگشایی و شروع گیت:</label>
+            <input type="time" id="schoolOpenTimeInput" class="clean-input" value="07:00">
           </div>
-          <p style="font-size:0.75rem; color:var(--text-sub); margin-top:4px;">
-            مقادیر کمتر = سخت‌گیرانه‌تر و دقیق‌تر | مقادیر بیشتر = حساس‌تر در زوایای مختلف صورت
+          <div class="form-group">
+            <label>ساعت پایان فعالیت و خروج:</label>
+            <input type="time" id="schoolCloseTimeInput" class="clean-input" value="14:30">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:16px;">
+          <label style="margin-bottom:8px; display:block;">روزهای کاری رسمی هفته:</label>
+          <div class="days-checkbox-grid">
+            <label class="day-checkbox"><input type="checkbox" class="school-day-chk" value="6" checked> شنبه</label>
+            <label class="day-checkbox"><input type="checkbox" class="school-day-chk" value="0" checked> یکشنبه</label>
+            <label class="day-checkbox"><input type="checkbox" class="school-day-chk" value="1" checked> دوشنبه</label>
+            <label class="day-checkbox"><input type="checkbox" class="school-day-chk" value="2" checked> سه‌شنبه</label>
+            <label class="day-checkbox"><input type="checkbox" class="school-day-chk" value="3" checked> چهارشنبه</label>
+            <label class="day-checkbox"><input type="checkbox" class="school-day-chk" value="4"> پنج‌شنبه</label>
+            <label class="day-checkbox"><input type="checkbox" class="school-day-chk" value="5"> جمعه</label>
+          </div>
+        </div>
+        <button id="saveHoursBtn" class="btn btn-main" style="margin-top:16px;">ذخیره ساعات کاری</button>
+      </div>
+
+      <!-- Subtab 3: Bale Bot for Parents -->
+      <div id="subtab-set-bale" class="settings-subtab-pane">
+        <h4 class="subtab-heading">سامانه اطلاع‌رسانی به اولیا در بله</h4>
+        <div class="bale-info-banner">
+          <div>
+            <strong>شناسه بازوی مدرسه:</strong> <code id="baleDisplayUsername">ثبت‌نشده</code>
+          </div>
+          <div id="baleLinkWrap" class="hidden">
+            <strong>لینک مستقیم بازو:</strong> <a id="baleDisplayLink" href="#" target="_blank" style="color:var(--primary); font-weight:bold;"></a>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-sub); margin-top:6px;">
+            اولیا می‌توانند با شروع گفتگو (/start) در بازوی اختصاصی مدرسه و وارد کردن کد ملی و شماره دانش‌آموزی فرزندشان، تایید هویت شده و پیامک تردد را به صورت خودکار دریافت نمایند.
           </p>
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label>شناسه بازوی بله (Bot Username):</label>
+          <input type="text" id="baleUsernameInput" class="clean-input" placeholder="مثال: my_school_bot">
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label>توکن دسترسی بازوی بله (Bale Bot Token):</label>
+          <input type="password" id="baleTokenInput" class="clean-input" placeholder="توکن دریافتی از بازوساز بله (BotFather)">
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label class="switch-container">
+            <input type="checkbox" id="baleActiveChk">
+            <span>فعال‌سازی سرویس اطلاع‌رسانی به اولیا در بله</span>
+          </label>
+        </div>
+
+        <hr style="border:none; border-top:1px solid var(--border); margin:16px 0;">
+
+        <!-- Auto Absent Alert Settings -->
+        <h5 style="font-size:0.9rem; font-weight:700; margin-bottom:10px;">ارسال خودکار پیامک هشدار به اولیای غایبین</h5>
+        <div class="form-group">
+          <label class="switch-container">
+            <input type="checkbox" id="autoAbsentAlertChk" checked>
+            <span>ارسال خودکار هشدار غیبت در ساعت مشخص شده به اولیای دانش‌آموزان غایب</span>
+          </label>
+        </div>
+        <div class="form-group" style="margin-top:10px; max-width:240px;">
+          <label>ساعت ارسال پیامک غیبت:</label>
+          <input type="time" id="autoAbsentTimeInput" class="clean-input" value="08:30">
+        </div>
+
+        <button id="saveBaleBtn" class="btn btn-main" style="margin-top:16px;">ذخیره تنظیمات بله</button>
+      </div>
+
+      <!-- Subtab 4: Backup & Restore -->
+      <div id="subtab-set-backup" class="settings-subtab-pane">
+        <h4 class="subtab-heading">پشتیبان‌گیری کامل و بازیابی</h4>
+        <p style="font-size:0.85rem; color:var(--text-sub); margin-bottom:16px; line-height:1.5;">
+          می‌توانید کل اطلاعات پایگاه داده (شامل پرونده‌های دانش‌آموزان، کدهای ملی، تصاویر چهره، لاگ‌های حضور و غیاب و اولیای متصل) را در یک فایل ZIP دانلود نموده یا از یک فایل قبلی بازیابی کنید.
+        </p>
+
+        <div class="backup-action-row">
+          <div class="backup-box">
+            <h5 style="margin-bottom:6px;">دانلود نسخه پشتیبان</h5>
+            <p style="font-size:0.78rem; color:var(--text-sub); margin-bottom:12px;">ذخیره تمام اطلاعات در یک فایل فشرده</p>
+            <a href="/api/backup/export" id="exportBackupBtn" class="btn btn-main" download>
+              دانلود فایل ZIP پشتیبان
+            </a>
+          </div>
+
+          <div class="backup-box">
+            <h5 style="margin-bottom:6px;">بازگردانی از فایل پشتیبان</h5>
+            <p style="font-size:0.78rem; color:var(--text-sub); margin-bottom:12px;">آپلود فایل ZIP جهت بازنشانی دیتابیس</p>
+            <input type="file" id="importZipInput" accept=".zip" class="hidden">
+            <button id="triggerImportBtn" class="btn btn-secondary">انتخاب و بازیابی ZIP</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subtab 5: AI Accuracy -->
+      <div id="subtab-set-ai" class="settings-subtab-pane">
+        <h4 class="subtab-heading">تنظیمات تطبیق هوش مصنوعی</h4>
+        <div class="form-group">
+          <label>آستانه دقت تطبیق چهره (Match Threshold):</label>
+          <div style="display:flex; gap:16px; align-items:center; margin-top:8px;">
+            <input type="range" id="thresholdSlider" min="0.40" max="0.65" step="0.01" value="0.54" style="flex-grow:1;">
+            <span id="thresholdValDisplay" class="threshold-pill">0.54</span>
+          </div>
+          <div class="threshold-scale-desc">
+            <span>دقیق‌تر و سخت‌گیرانه (0.40)</span>
+            <span>پیش‌فرض بهینه (0.54)</span>
+            <span>حساس‌تر در زوایای تند (0.65)</span>
+          </div>
         </div>
       </div>
     </div>
@@ -268,6 +391,7 @@
             <tr>
               <th>تصویر</th>
               <th>نام دانش‌آموز</th>
+              <th>کد ملی</th>
               <th>کد دانش‌آموزی</th>
               <th>کلاس / پایه</th>
               <th>تاریخ ثبت‌نام</th>
@@ -275,7 +399,7 @@
             </tr>
           </thead>
           <tbody id="adminTableBody">
-            <tr><td colspan="6" class="empty-state">دانش‌آموزی ثبت نشده است.</td></tr>
+            <tr><td colspan="7" class="empty-state">دانش‌آموزی ثبت نشده است.</td></tr>
           </tbody>
         </table>
       </div>
@@ -296,7 +420,11 @@
           <input type="text" id="editMemberName" class="clean-input" required>
         </div>
         <div class="form-group" style="margin-top:12px;">
-          <label>کد دانش‌آموزی / کدملی:</label>
+          <label>کد ملی ۱۰ رقمی دانش‌آموز:</label>
+          <input type="text" id="editStudentNationalId" class="clean-input">
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>کد دانش‌آموزی:</label>
           <input type="text" id="editStudentCode" class="clean-input">
         </div>
         <div class="form-group" style="margin-top:12px;">

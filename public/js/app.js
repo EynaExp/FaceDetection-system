@@ -445,6 +445,23 @@ const thresholdSlider = document.getElementById('thresholdSlider');
 const thresholdValDisplay = document.getElementById('thresholdValDisplay');
 const langToggleBtn = document.getElementById('langToggleBtn');
 
+// School Hours, Bale & Backup Settings Elements
+const schoolOpenTimeInput = document.getElementById('schoolOpenTimeInput');
+const schoolCloseTimeInput = document.getElementById('schoolCloseTimeInput');
+const saveHoursBtn = document.getElementById('saveHoursBtn');
+const baleUsernameInput = document.getElementById('baleUsernameInput');
+const baleTokenInput = document.getElementById('baleTokenInput');
+const baleActiveChk = document.getElementById('baleActiveChk');
+const autoAbsentAlertChk = document.getElementById('autoAbsentAlertChk');
+const autoAbsentTimeInput = document.getElementById('autoAbsentTimeInput');
+const saveBaleBtn = document.getElementById('saveBaleBtn');
+const baleDisplayUsername = document.getElementById('baleDisplayUsername');
+const baleLinkWrap = document.getElementById('baleLinkWrap');
+const baleDisplayLink = document.getElementById('baleDisplayLink');
+const exportBackupBtn = document.getElementById('exportBackupBtn');
+const importZipInput = document.getElementById('importZipInput');
+const triggerImportBtn = document.getElementById('triggerImportBtn');
+
 if (langToggleBtn) {
   langToggleBtn.addEventListener('click', () => {
     currentLang = currentLang === 'fa' ? 'en' : 'fa';
@@ -1530,6 +1547,160 @@ async function deleteStudent(id) {
   await loadTodayAttendance();
 }
 
+// School Hours, Bale & Backup Handlers
+async function loadSchoolSettings() {
+  try {
+    const res = await fetch('/api/config/hours');
+    const d = await res.json();
+    if (d.success) {
+      if (schoolOpenTimeInput) schoolOpenTimeInput.value = d.schoolHours.openTime || "07:00";
+      if (schoolCloseTimeInput) schoolCloseTimeInput.value = d.schoolHours.closeTime || "14:30";
+      if (baleActiveChk) baleActiveChk.checked = d.baleEnabled === true;
+      if (autoAbsentAlertChk) autoAbsentAlertChk.checked = d.autoAbsentAlert !== false;
+      if (autoAbsentTimeInput) autoAbsentTimeInput.value = d.autoAbsentTime || "08:30";
+      if (baleUsernameInput) baleUsernameInput.value = d.baleBotUsername || '';
+
+      if (baleDisplayUsername) {
+        baleDisplayUsername.innerText = d.baleBotUsername ? `@${d.baleBotUsername}` : 'ثبت‌نشده';
+      }
+      if (baleLinkWrap && baleDisplayLink) {
+        if (d.baleBotUsername) {
+          baleLinkWrap.classList.remove('hidden');
+          baleDisplayLink.href = `https://ble.ir/${d.baleBotUsername}`;
+          baleDisplayLink.innerText = `ble.ir/${d.baleBotUsername}`;
+        } else {
+          baleLinkWrap.classList.add('hidden');
+        }
+      }
+
+      const days = d.schoolHours.days || [0, 1, 2, 3, 6];
+      document.querySelectorAll('.school-day-chk').forEach(chk => {
+        chk.checked = days.includes(Number(chk.value));
+      });
+    }
+  } catch (e) {}
+}
+
+if (saveHoursBtn) {
+  saveHoursBtn.addEventListener('click', async () => {
+    const openTime = schoolOpenTimeInput.value;
+    const closeTime = schoolCloseTimeInput.value;
+    const days = [];
+    document.querySelectorAll('.school-day-chk:checked').forEach(c => days.push(Number(c.value)));
+
+    try {
+      saveHoursBtn.disabled = true;
+      const res = await fetch('/api/config/hours', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ openTime, closeTime, days })
+      });
+      const d = await res.json();
+      if (d.success) alert('ساعات و روزهای کاری مدرسه با موفقیت ذخیره شد.');
+      else alert('خطا در ذخیره ساعات کاری');
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      saveHoursBtn.disabled = false;
+    }
+  });
+}
+
+if (saveBaleBtn) {
+  saveBaleBtn.addEventListener('click', async () => {
+    const baleToken = baleTokenInput ? baleTokenInput.value.trim() : '';
+    const baleBotUsername = baleUsernameInput ? baleUsernameInput.value.trim() : '';
+    const baleEnabled = baleActiveChk ? baleActiveChk.checked : false;
+    const autoAbsentAlert = autoAbsentAlertChk ? autoAbsentAlertChk.checked : true;
+    const autoAbsentTime = autoAbsentTimeInput ? autoAbsentTimeInput.value.trim() : '08:30';
+
+    try {
+      saveBaleBtn.disabled = true;
+      const res = await fetch('/api/config/hours', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ baleToken, baleBotUsername, baleEnabled, autoAbsentAlert, autoAbsentTime })
+      });
+
+      if (res.status === 403) {
+        alert('نشست مدیریت منقضی شده است. لطفاً ابتدا خارج شده و مجدداً با رمز عبور مدیر وارد شوید.');
+        adminToken = null;
+        localStorage.removeItem('school_admin_token');
+        updateAdminUI();
+        return;
+      }
+
+      const d = await res.json();
+      if (d.success) {
+        alert('تنظیمات بازوی بله و هشدار غیبت با موفقیت ذخیره شد.');
+        loadSchoolSettings();
+      } else {
+        alert('خطا در ذخیره تنظیمات بله: ' + (d.error || 'داده نامعتبر'));
+      }
+    } catch (e) {
+      alert('خطا در ارتباط با سرور: ' + e.message);
+    } finally {
+      saveBaleBtn.disabled = false;
+    }
+  });
+}
+
+// Backup Import Handlers
+if (triggerImportBtn && importZipInput) {
+  triggerImportBtn.addEventListener('click', () => importZipInput.click());
+  importZipInput.addEventListener('change', async () => {
+    if (!importZipInput.files || importZipInput.files.length === 0) return;
+    const file = importZipInput.files[0];
+    if (!confirm(`آیا از بازگردانی فایل پشتیبان "${file.name}" اطمینان دارید؟ اطلاعات فعلی با اطلاعات فایل پشتیبان جایگزین خواهند شد.`)) {
+      importZipInput.value = '';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('backupZip', file);
+
+    try {
+      triggerImportBtn.disabled = true;
+      triggerImportBtn.innerText = 'در حال بازگردانی...';
+      const headers = {};
+      if (adminToken) headers['x-admin-token'] = adminToken;
+
+      const res = await fetch('/api/backup/import', {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      const d = await res.json();
+      if (d.success) {
+        alert('پایگاه داده و عکس‌ها با موفقیت بازیابی شدند.');
+        await loadStudents();
+        await loadTodayAttendance();
+      } else {
+        alert('خطا در بازیابی: ' + (d.error || 'ناشناخته'));
+      }
+    } catch (e) {
+      alert('خطای ارتباط: ' + e.message);
+    } finally {
+      triggerImportBtn.disabled = false;
+      triggerImportBtn.innerText = 'بازگردانی فایل پشتیبان (Import ZIP)';
+      importZipInput.value = '';
+    }
+  });
+}
+
+// Settings Subnav Switching Logic
+document.querySelectorAll('.subnav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.subnav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.settings-subtab-pane').forEach(p => p.classList.remove('active'));
+
+    btn.classList.add('active');
+    const targetId = `subtab-${btn.getAttribute('data-subtab')}`;
+    const targetPane = document.getElementById(targetId);
+    if (targetPane) targetPane.classList.add('active');
+  });
+});
+
 // 5. NAVIGATION TABS
 function switchTab(tab) {
   currentTab = tab;
@@ -1567,6 +1738,7 @@ function switchTab(tab) {
     if (tabSettingsBtn) tabSettingsBtn.classList.add('active');
     if (tabSettings) tabSettings.classList.add('active');
     stopEnrollCam();
+    loadSchoolSettings();
   }
 }
 
