@@ -1148,6 +1148,11 @@ function renderAttendanceTable() {
           ${isPresent ? i18n[currentLang].btnMarkAbsent : i18n[currentLang].btnMarkPresent}
         </button>
       </td>
+      <td>
+        <button class="btn-action send-single-bale-btn" data-id="${s.id}" title="ارسال پیامک وضعیت به ولی در بله">
+          ارسال بله
+        </button>
+      </td>
     `;
 
     const toggleBtn = tr.querySelector('.btn-toggle-att');
@@ -1174,6 +1179,34 @@ function renderAttendanceTable() {
         alert('خطای ارتباط با سرور: ' + err.message);
       } finally {
         toggleBtn.disabled = false;
+      }
+    };
+
+    const singleBaleBtn = tr.querySelector('.send-single-bale-btn');
+    singleBaleBtn.onclick = async () => {
+      try {
+        singleBaleBtn.disabled = true;
+        singleBaleBtn.innerText = 'در حال ارسال...';
+        const res = await fetch('/api/attendance/notify-absents', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ studentId: s.id })
+        });
+        const d = await res.json();
+        if (d.success) {
+          if (d.notifiedParents > 0) {
+            alert(`پیامک وضعیت برای اولیای دانش‌آموز «${s.name}» با موفقیت ارسال شد.`);
+          } else {
+            alert(`اولیای دانش‌آموز «${s.name}» هنوز در بازوی بله احراز هویت نکرده‌اند.`);
+          }
+        } else {
+          alert('خطا در ارسال: ' + (d.error || 'ناشناخته'));
+        }
+      } catch (err) {
+        alert('خطای شبکه: ' + err.message);
+      } finally {
+        singleBaleBtn.disabled = false;
+        singleBaleBtn.innerText = 'ارسال بله';
       }
     };
 
@@ -1240,6 +1273,52 @@ document.querySelectorAll('.filter-tab-btn').forEach(btn => {
 
 attendanceSearchInput.addEventListener('input', renderAttendanceTable);
 refreshAttendanceBtn.addEventListener('click', loadTodayAttendance);
+
+// Export CSV & Broadcast Notify Absents Buttons
+const exportCsvBtn = document.getElementById('exportCsvBtn');
+const notifyAbsentsBtn = document.getElementById('notifyAbsentsBtn');
+
+if (exportCsvBtn) {
+  exportCsvBtn.addEventListener('click', () => {
+    window.location.href = '/api/attendance/export-csv';
+  });
+}
+
+if (notifyAbsentsBtn) {
+  notifyAbsentsBtn.addEventListener('click', async () => {
+    if (!confirm(currentLang === 'fa' ? 'آیا پیامک هشدار غیبت به اولیای تمامی دانش‌آموزان غایب در بله ارسال شود؟' : 'Send absentee alerts to all absent students parents on Bale?')) return;
+    try {
+      notifyAbsentsBtn.disabled = true;
+      notifyAbsentsBtn.innerText = currentLang === 'fa' ? 'در حال ارسال پیام‌ها...' : 'Sending...';
+
+      const res = await fetch('/api/attendance/notify-absents', {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      if (res.status === 403) {
+        alert('خطای دسترسی: لطفا ابتدا با دکمه "ورود مدیر" وارد شوید.');
+        return;
+      }
+
+      const d = await res.json();
+      if (d.success) {
+        if (d.notifiedParents > 0) {
+          alert(`پیامک غیبت برای اولیای ${d.notifiedParents} دانش‌آموز غایب در بله ارسال شد. (کل غایبین: ${d.targetTotal})`);
+        } else {
+          alert(`از بین ${d.targetTotal} دانش‌آموز غایب، هیچ ولی حسابی به بازوی بله متصل نکرده است.`);
+        }
+      } else {
+        alert('خطا در ارسال پیام: ' + (d.error || 'ناشناخته'));
+      }
+    } catch (e) {
+      alert('خطای ارتباط: ' + e.message);
+    } finally {
+      notifyAbsentsBtn.disabled = false;
+      notifyAbsentsBtn.innerText = currentLang === 'fa' ? 'پیامک غیبت به اولیا در بله' : 'Notify Absent Parents on Bale';
+    }
+  });
+}
 
 // 3. STUDENT ENROLLMENT (3 SIMPLE STEPS)
 toggleEnrollCamBtn.addEventListener('click', () => {

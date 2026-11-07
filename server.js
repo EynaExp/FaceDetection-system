@@ -469,36 +469,44 @@ app.get('/api/attendance/export-csv', requireAdmin, (req, res) => {
 app.post('/api/attendance/notify-absents', requireAdmin, async (req, res) => {
   try {
     const today = req.query.date || getTodayKey();
+    const { studentId } = req.body || {}; // optional single student target
     const students = readJSON(DB_FILE);
     const attendanceMap = readJSON(ATTENDANCE_FILE);
     const todayLogs = attendanceMap[today] || [];
     const presentIds = new Set(todayLogs.map(l => l.studentId));
 
-    const absentStudents = students.filter(s => !presentIds.has(s.id));
+    let targetStudents = [];
+    if (studentId) {
+      const single = students.find(s => s.id === studentId);
+      if (single) targetStudents = [single];
+    } else {
+      targetStudents = students.filter(s => !presentIds.has(s.id));
+    }
+
     const parents = readJSON(PARENTS_FILE);
     const dateStr = new Date().toLocaleDateString('fa-IR');
 
     let notifiedCount = 0;
 
-    for (const student of absentStudents) {
+    for (const student of targetStudents) {
       const linkedParents = parents.filter(p => p.studentId === student.id);
       for (const parent of linkedParents) {
         const msg = `⚠️ هشدار غیبت از مدرسه
 
 ولی گرامی،
-به اطلاع می‌رساند فرزند شما «${student.name}» (پایه/کلاس: ${student.grade}) امروز ${dateStr} تا این لحظه در مدرسه حضور نیافته و وضعیت ایشان «غایب» ثبت شده است.
+به اطلاع می‌رساند فرزند شما «${student.name}» (پایه/کلاس: ${student.grade}) امروز ${dateStr} در مدرسه حضور نیافته و وضعیت ایشان «غایب» ثبت شده است.
 
 در صورت موجه بودن غیبت، لطفاً به دفتر مدرسه اطلاع دهید.
 با احترام، مدیریت مدرسه`;
 
-        sendBaleMessage(parent.chatId, msg);
+        await sendBaleMessage(parent.chatId, msg);
         notifiedCount++;
       }
     }
 
     res.json({
       success: true,
-      absentTotal: absentStudents.length,
+      targetTotal: targetStudents.length,
       notifiedParents: notifiedCount
     });
   } catch (err) {
