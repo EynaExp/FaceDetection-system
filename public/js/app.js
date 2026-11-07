@@ -512,8 +512,30 @@ function updateAdminUI() {
       adminAuthSvg.innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
     }
     adminAuthBtn.classList.remove('logged-in');
-    // If on restricted tab, send back to gate
-    if (currentTab !== 'gate') switchTab('gate');
+    // Ensure view strictly resets to Student Gate on logout
+    switchTab('gate');
+  }
+}
+
+// Check admin session with server
+async function checkAdminSession() {
+  if (!adminToken) {
+    updateAdminUI();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/check-session', {
+      headers: getAuthHeaders()
+    });
+    const d = await res.json();
+    if (!d.valid) {
+      adminToken = null;
+      localStorage.removeItem('school_admin_token');
+      updateAdminUI();
+    }
+  } catch (err) {
+    // network error, retain for retry
   }
 }
 
@@ -1920,7 +1942,13 @@ if (tabSettingsBtn) tabSettingsBtn.addEventListener('click', () => switchTab('se
 window.addEventListener('DOMContentLoaded', () => {
   applyTranslations();
   updateAdminUI();
+  checkAdminSession();
   initModels();
+
+  // Periodic session validation (every 10s)
+  setInterval(() => {
+    if (adminToken) checkAdminSession();
+  }, 10000);
 
   // Background Live Auto-Update for Attendance Table & Stats
   setInterval(() => {

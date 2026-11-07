@@ -133,6 +133,16 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// Check Admin Session Validity
+app.get('/api/admin/check-session', (req, res) => {
+  const token = req.headers['x-admin-token'];
+  if (token && activeAdminTokens.has(token)) {
+    res.json({ success: true, valid: true });
+  } else {
+    res.json({ success: false, valid: false });
+  }
+});
+
 function requireAdmin(req, res, next) {
   const token = req.headers['x-admin-token'];
   if (token && activeAdminTokens.has(token)) {
