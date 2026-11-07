@@ -728,73 +728,144 @@ async function pollBaleUpdates() {
   setTimeout(pollBaleUpdates, 1500);
 }
 
-// Guided Parent Questioning / Authentication Flow
+// Guided Parent Questioning / Authentication Flow (National ID Only with Edit/Confirm option)
+function normalizeDigits(str) {
+  if (!str) return '';
+  return str
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .trim();
+}
+
+const CONFIRM_KEYBOARD = {
+  keyboard: [
+    [{ text: 'تایید و ادامه' }, { text: 'اصلاح و ویرایش مجدد' }]
+  ],
+  resize_keyboard: true,
+  one_time_keyboard: true
+};
+
+const FINAL_CONFIRM_KEYBOARD = {
+  keyboard: [
+    [{ text: 'تایید نهایی و ثبت' }, { text: 'شروع مجدد از ابتدا' }]
+  ],
+  resize_keyboard: true,
+  one_time_keyboard: true
+};
+
+const REMOVE_KEYBOARD = { remove_keyboard: true };
+
 async function handleBaleIncomingMessage(msg) {
   const chatId = msg.chat.id;
-  const text = msg.text.trim();
+  const rawText = msg.text.trim();
+  const text = normalizeDigits(rawText);
   const session = parentSessions.get(chatId) || { step: 'IDLE' };
 
-  if (text === '/start' || text === 'شروع') {
-    parentSessions.set(chatId, { step: 'ASK_CODE' });
-    await sendBaleMessage(chatId, `سلام، به سامانه اطلاع‌رسانی تردد مدرسه خوش آمدید.
+  if (rawText === '/start' || rawText === 'شروع' || rawText === 'شروع مجدد از ابتدا') {
+    parentSessions.set(chatId, { step: 'ASK_NATIONAL_ID' });
+    await sendBaleMessage(chatId, `سلام، به سامانه هوشمند تردد مدرسه خوش آمدید.
 
-جهت احراز هویت شما به عنوان ولی دانش‌آموز، لطفاً «شماره دانش‌آموزی» فرزند خود را ارسال فرمایید:`);
+جهت احراز هویت اولیا، لطفاً «کد ملی ۱۰ رقمی دانش‌آموز» را ارسال فرمایید:`, REMOVE_KEYBOARD);
     return;
   }
 
-  if (session.step === 'ASK_CODE') {
+  // 1. Enter National ID
+  if (session.step === 'ASK_NATIONAL_ID') {
     const students = readJSON(DB_FILE);
-    const matched = students.find(s => s.studentCode === text);
+    const matched = students.find(s => normalizeDigits(s.nationalId || '') === text);
 
     if (!matched) {
-      await sendBaleMessage(chatId, `دانش‌آموزی با شماره دانش‌آموزی «${text}» در سامانه مدرسه یافت نشد.
-لطفاً مجدداً شماره دانش‌آموزی را با دقت ارسال کنید یا /start را بزنید:`);
+      await sendBaleMessage(chatId, `دانش‌آموزی با کد ملی «${rawText}» در سامانه مدرسه یافت نشد.
+
+لطفاً کد ملی ۱۰ رقمی را با دقت ارسال کنید یا در صورت عدم ثبت در سامانه با مدرسه تماس بگیرید:`);
       return;
     }
 
-    session.step = 'ASK_NATIONAL_ID';
+    session.tempNationalId = text;
     session.matchedStudent = matched;
+    session.step = 'CONFIRM_NATIONAL_ID';
     parentSessions.set(chatId, session);
 
-    await sendBaleMessage(chatId, `شماره دانش‌آموزی تایید شد.
-حالا جهت اطمینان نهایی و تایید هویت والدین، لطفاً «کد ملی ۱۰ رقمی» فرزندتان («${matched.name}») را وارد کنید:`);
+    await sendBaleMessage(chatId, `کد ملی ارسالی: «${text}»
+نام دانش‌آموز شناسایی‌شده: «${matched.name}» (پایه/کلاس: ${matched.grade})
+
+آیا این مشخصات صحیح است و تایید می‌کنید؟`, CONFIRM_KEYBOARD);
     return;
   }
 
-  if (session.step === 'ASK_NATIONAL_ID') {
-    const student = session.matchedStudent;
-    // Check if nationalId matches database (or if student has no nationalId yet, match studentCode/allow first setup)
-    const dbNationalId = (student.nationalId || '').trim();
+  // 1-Confirm National ID
+  if (session.step === 'CONFIRM_NATIONAL_ID') {
+    if (rawText === 'تایید و ادامه' || rawText === 'تایید' || rawText === 'بله') {
+      session.step = 'ASK_PHONE';
+      parentSessions.set(chatId, session);
+      await sendBaleMessage(chatId, `مشخصات دانش‌آموز تایید شد.
 
-    if (dbNationalId && dbNationalId !== text) {
-      await sendBaleMessage(chatId, `کد ملی وارد شده با مشخصات دانش‌آموز «${student.name}» مطابقت ندارد!
-لطفاً مجدداً کد ملی ۱۰ رقمی را دقیق ارسال کنید:`);
+حالا لطفاً «شماره تلفن همراه ولی» را ارسال فرمایید (مثال: 09121234567):`, REMOVE_KEYBOARD);
+    } else {
+      session.step = 'ASK_NATIONAL_ID';
+      parentSessions.set(chatId, session);
+      await sendBaleMessage(chatId, `لطفاً مجدداً «کد ملی ۱۰ رقمی دانش‌آموز» را ارسال فرمایید:`, REMOVE_KEYBOARD);
+    }
+    return;
+  }
+
+  // 2. Enter Parent Phone Number
+  if (session.step === 'ASK_PHONE') {
+    if (text.length < 10) {
+      await sendBaleMessage(chatId, `شماره موبایل وارد شده نامعتبر است. لطفاً شماره همراه ۱۱ رقمی خود را ارسال کنید:`);
       return;
     }
 
-    // Successfully verified parent!
-    const parents = readJSON(PARENTS_FILE);
-    const existing = parents.find(p => p.chatId === chatId && p.studentId === student.id);
-    if (!existing) {
-      parents.push({
+    session.tempPhone = text;
+    session.step = 'CONFIRM_ALL';
+    parentSessions.set(chatId, session);
+
+    await sendBaleMessage(chatId, `پیش‌نمایش اطلاعات ثبت‌شده:
+👤 نام فرزند: ${session.matchedStudent.name}
+🪪 کد ملی: ${session.tempNationalId}
+🏫 کلاس/پایه: ${session.matchedStudent.grade}
+📱 شماره تماس ولی: ${text}
+
+آیا مایل به ثبت نهایی و اتصال به سامانه مدرسه هستید؟`, FINAL_CONFIRM_KEYBOARD);
+    return;
+  }
+
+  // 2-Confirm All & Finalize
+  if (session.step === 'CONFIRM_ALL') {
+    if (rawText === 'تایید نهایی و ثبت' || rawText === 'تایید' || rawText === 'بله') {
+      const student = session.matchedStudent;
+      const parents = readJSON(PARENTS_FILE);
+
+      const existingIdx = parents.findIndex(p => p.studentId === student.id && p.chatId === chatId);
+      const parentRecord = {
         chatId,
         studentId: student.id,
         studentName: student.name,
+        phone: session.tempPhone,
         linkedAt: Date.now()
-      });
+      };
+
+      if (existingIdx !== -1) {
+        parents[existingIdx] = parentRecord;
+      } else {
+        parents.push(parentRecord);
+      }
       writeJSON(PARENTS_FILE, parents);
+      parentSessions.delete(chatId);
+
+      await sendBaleMessage(chatId, `احراز هویت با موفقیت انجام شد! ✅
+
+مشخصات شما با موفقیت به پرونده «${student.name}» متصل گردید.
+از این پس در لحظه عبور فرزندتان از گیت ورودی مدرسه، پیام ورود ایشان همراه با ساعت دقیق به این گفت‌وگو ارسال خواهد شد.`, REMOVE_KEYBOARD);
+    } else {
+      parentSessions.set(chatId, { step: 'ASK_NATIONAL_ID' });
+      await sendBaleMessage(chatId, `فرآیند ثبت مجدداً آغاز شد. لطفاً «کد ملی ۱۰ رقمی دانش‌آموز» را ارسال فرمایید:`, REMOVE_KEYBOARD);
     }
-
-    parentSessions.delete(chatId);
-    await sendBaleMessage(chatId, `احراز هویت با موفقیت انجام شد!
-
-شما به عنوان ولی دانش‌آموز «${student.name}» تایید شدید.
-از این پس به محض عبور فرزندتان از گیت ورودی مدرسه، پیام ورود ایشان به همراه ساعت دقیق به این گفت‌وگو ارسال خواهد شد.`);
     return;
   }
 
   // Default response
-  await sendBaleMessage(chatId, `پیام دریافت شد. جهت اتصال به پرونده دانش‌آموز لطفاً دستور /start را ارسال کنید.`);
+  await sendBaleMessage(chatId, `جهت احراز هویت و اتصال به سامانه مدرسه لطفاً دستور /start را ارسال فرمایید.`);
 }
 
 // Start Bale Worker in background
