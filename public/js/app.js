@@ -419,8 +419,11 @@ const cancelEditBtn = document.getElementById('cancelEditBtn');
 const saveEditBtn = document.getElementById('saveEditBtn');
 const editMemberId = document.getElementById('editMemberId');
 const editMemberName = document.getElementById('editMemberName');
+const editStudentNationalId = document.getElementById('editStudentNationalId');
 const editStudentCode = document.getElementById('editStudentCode');
 const editStudentGrade = document.getElementById('editStudentGrade');
+const editParentPhone = document.getElementById('editParentPhone');
+const editParentBaleId = document.getElementById('editParentBaleId');
 
 // Nav & Helpers
 const systemDot = document.getElementById('systemDot');
@@ -1511,6 +1514,11 @@ function openEditModal(student) {
   if (editStudentNationalId) editStudentNationalId.value = student.nationalId || '';
   editStudentCode.value = student.studentCode || '';
   editStudentGrade.value = student.grade || '';
+
+  const parent = student.parentInfo;
+  if (editParentPhone) editParentPhone.value = parent && parent.phone !== '-' ? parent.phone : '';
+  if (editParentBaleId) editParentBaleId.value = parent && parent.chatId !== '-' ? parent.chatId : '';
+
   editModal.classList.remove('hidden');
 }
 
@@ -1527,6 +1535,8 @@ saveEditBtn.addEventListener('click', async () => {
   const nationalId = editStudentNationalId ? editStudentNationalId.value.trim() : '';
   const studentCode = editStudentCode.value.trim();
   const grade = editStudentGrade.value.trim();
+  const parentPhone = editParentPhone ? editParentPhone.value.trim() : undefined;
+  const parentBaleId = editParentBaleId ? editParentBaleId.value.trim() : undefined;
 
   if (!name) {
     alert('نام دانش‌آموز نمی‌تواند خالی باشد');
@@ -1538,7 +1548,7 @@ saveEditBtn.addEventListener('click', async () => {
     const res = await fetch(`/api/students/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ name, nationalId, studentCode, grade })
+      body: JSON.stringify({ name, nationalId, studentCode, grade, parentPhone, parentBaleId })
     });
     const d = await res.json();
     if (d.success) {

@@ -238,7 +238,7 @@ app.post('/api/students/register', requireAdmin, (req, res) => {
 app.put('/api/students/:id', requireAdmin, (req, res) => {
   try {
     const { id } = req.params;
-    const { name, nationalId, studentCode, grade } = req.body;
+    const { name, nationalId, studentCode, grade, parentPhone, parentBaleId } = req.body;
     const students = readJSON(DB_FILE);
     const student = students.find(s => s.id === id);
 
@@ -249,8 +249,33 @@ app.put('/api/students/:id', requireAdmin, (req, res) => {
     if (studentCode && studentCode.trim()) student.studentCode = studentCode.trim();
     if (grade && grade.trim()) student.grade = grade.trim();
     student.updatedAt = Date.now();
-
     writeJSON(DB_FILE, students);
+
+    // Update or link parent contact & Bale info in bale_parents.json
+    if (parentPhone !== undefined || parentBaleId !== undefined) {
+      const parents = readJSON(PARENTS_FILE);
+      let parentEntry = parents.find(p => p.studentId === id);
+
+      const phoneVal = parentPhone ? String(parentPhone).trim() : (parentEntry ? parentEntry.phone : '-');
+      const baleIdVal = parentBaleId ? String(parentBaleId).trim() : (parentEntry ? parentEntry.chatId : null);
+
+      if (parentEntry) {
+        if (parentPhone !== undefined) parentEntry.phone = phoneVal;
+        if (parentBaleId !== undefined) parentEntry.chatId = baleIdVal;
+        parentEntry.studentName = student.name;
+        parentEntry.updatedAt = Date.now();
+      } else if (phoneVal !== '-' || baleIdVal) {
+        parents.push({
+          chatId: baleIdVal,
+          studentId: id,
+          studentName: student.name,
+          phone: phoneVal,
+          linkedAt: Date.now()
+        });
+      }
+      writeJSON(PARENTS_FILE, parents);
+    }
+
     res.json({ success: true, student });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
