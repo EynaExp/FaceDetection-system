@@ -146,6 +146,7 @@ function requireAdmin(req, res, next) {
 app.get('/api/students', (req, res) => {
   try {
     const students = readJSON(DB_FILE);
+    const parents = readJSON(PARENTS_FILE);
     const search = (req.query.q || '').trim().toLowerCase();
     const grade = (req.query.grade || '').trim();
 
@@ -162,7 +163,20 @@ app.get('/api/students', (req, res) => {
       filtered = filtered.filter(s => s.grade === grade);
     }
 
-    res.json({ success: true, count: filtered.length, total: students.length, students: filtered });
+    // Attach verified parent information (Phone number, Bale Chat ID, Linked Date)
+    const enriched = filtered.map(s => {
+      const p = parents.find(item => item.studentId === s.id);
+      return {
+        ...s,
+        parentInfo: p ? {
+          phone: p.phone || '-',
+          chatId: p.chatId || '-',
+          linkedAt: p.linkedAt || null
+        } : null
+      };
+    });
+
+    res.json({ success: true, count: enriched.length, total: students.length, students: enriched });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -1467,19 +1467,29 @@ function renderAdminTable() {
   }
 
   if (list.length === 0) {
-    adminTableBody.innerHTML = `<tr><td colspan="6" class="empty-state">${i18n[currentLang].emptyNoStudents}</td></tr>`;
+    adminTableBody.innerHTML = `<tr><td colspan="8" class="empty-state">${i18n[currentLang].emptyNoStudents}</td></tr>`;
     return;
   }
 
   adminTableBody.innerHTML = '';
   list.forEach(s => {
     const regDate = new Date(s.registeredAt).toLocaleDateString(currentLang === 'fa' ? 'fa-IR' : 'en-US');
+    const parent = s.parentInfo;
+    const parentDisplay = parent
+      ? `<div style="font-size:0.78rem; line-height:1.4;">
+           <span style="font-weight:bold; color:var(--text);">${parent.phone}</span><br>
+           <span style="color:var(--primary); font-size:0.74rem;">Bale: ${parent.chatId}</span>
+         </div>`
+      : `<span style="color:var(--text-sub); font-size:0.74rem;">ثبت‌نشده در بله</span>`;
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><img src="${s.photoUrl || ''}" class="thumb-img"></td>
       <td><strong>${s.name}</strong></td>
+      <td>${s.nationalId || '-'}</td>
       <td>${s.studentCode || '-'}</td>
       <td><span class="tag-role">${s.grade}</span></td>
+      <td>${parentDisplay}</td>
       <td>${regDate}</td>
       <td>
         <button class="btn-action edit-btn" data-id="${s.id}">${i18n[currentLang].btnEdit}</button>
@@ -1498,6 +1508,7 @@ memberSearchInput.addEventListener('input', renderAdminTable);
 function openEditModal(student) {
   editMemberId.value = student.id;
   editMemberName.value = student.name;
+  if (editStudentNationalId) editStudentNationalId.value = student.nationalId || '';
   editStudentCode.value = student.studentCode || '';
   editStudentGrade.value = student.grade || '';
   editModal.classList.remove('hidden');
@@ -1513,6 +1524,7 @@ cancelEditBtn.addEventListener('click', closeEditModal);
 saveEditBtn.addEventListener('click', async () => {
   const id = editMemberId.value;
   const name = editMemberName.value.trim();
+  const nationalId = editStudentNationalId ? editStudentNationalId.value.trim() : '';
   const studentCode = editStudentCode.value.trim();
   const grade = editStudentGrade.value.trim();
 
@@ -1526,7 +1538,7 @@ saveEditBtn.addEventListener('click', async () => {
     const res = await fetch(`/api/students/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ name, studentCode, grade })
+      body: JSON.stringify({ name, nationalId, studentCode, grade })
     });
     const d = await res.json();
     if (d.success) {
