@@ -769,15 +769,21 @@ async function handleBaleIncomingMessage(msg) {
     return;
   }
 
-  // 1. Enter National ID
+  // 1. Enter National ID or Student Code / System ID
   if (session.step === 'ASK_NATIONAL_ID') {
     const students = readJSON(DB_FILE);
-    const matched = students.find(s => normalizeDigits(s.nationalId || '') === text);
+    // Flexible matching: Match against National ID OR Student Code OR System ID
+    const matched = students.find(s => {
+      const nid = normalizeDigits(s.nationalId || '');
+      const code = normalizeDigits(s.studentCode || '');
+      const id = String(s.id || '').trim();
+      return (nid && nid === text) || (code && code === text) || (id && id === text);
+    });
 
     if (!matched) {
-      await sendBaleMessage(chatId, `دانش‌آموزی با کد ملی «${rawText}» در سامانه مدرسه یافت نشد.
+      await sendBaleMessage(chatId, `دانش‌آموزی با مشخصه «${rawText}» در سامانه مدرسه یافت نشد.
 
-لطفاً کد ملی ۱۰ رقمی را با دقت ارسال کنید یا در صورت عدم ثبت در سامانه با مدرسه تماس بگیرید:`);
+لطفاً کد ملی ۱۰ رقمی، شماره دانش‌آموزی یا شناسه پرونده را با دقت ارسال کنید یا /start را بزنید:`);
       return;
     }
 
@@ -786,7 +792,7 @@ async function handleBaleIncomingMessage(msg) {
     session.step = 'CONFIRM_NATIONAL_ID';
     parentSessions.set(chatId, session);
 
-    await sendBaleMessage(chatId, `کد ملی ارسالی: «${text}»
+    await sendBaleMessage(chatId, `مشخصه ارسالی شما: «${text}»
 نام دانش‌آموز شناسایی‌شده: «${matched.name}» (پایه/کلاس: ${matched.grade})
 
 آیا این مشخصات صحیح است و تایید می‌کنید؟`, CONFIRM_KEYBOARD);

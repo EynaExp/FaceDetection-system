@@ -1582,8 +1582,27 @@ async function loadSchoolSettings() {
       if (autoAbsentAlertChk) autoAbsentAlertChk.checked = d.autoAbsentAlert !== false;
       if (autoAbsentTimeInput) autoAbsentTimeInput.value = d.autoAbsentTime || "08:30";
 
+      // If server has bale token saved, reflect it in input and auto-detect bot username
+      if (d.hasBaleToken && (!baleTokenInput.value || baleTokenInput.value === '')) {
+        // Trigger background connection test to auto-populate username and badge
+        fetch('/api/bale/test-connection', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({})
+        }).then(r => r.json()).then(resData => {
+          if (resData.success && resData.bot) {
+            if (baleDisplayUsername) baleDisplayUsername.innerText = `@${resData.bot.username}`;
+            if (baleLinkWrap && baleDisplayLink) {
+              baleLinkWrap.classList.remove('hidden');
+              baleDisplayLink.href = `https://ble.ir/${resData.bot.username}`;
+              baleDisplayLink.innerText = `ble.ir/${resData.bot.username}`;
+            }
+          }
+        }).catch(()=>{});
+      }
+
       if (baleDisplayUsername) {
-        baleDisplayUsername.innerText = d.baleBotUsername ? `@${d.baleBotUsername}` : 'ثبت‌نشده';
+        baleDisplayUsername.innerText = d.baleBotUsername ? `@${d.baleBotUsername}` : (d.hasBaleToken ? 'متصل' : 'ثبت‌نشده');
       }
       if (baleLinkWrap && baleDisplayLink) {
         if (d.baleBotUsername) {
